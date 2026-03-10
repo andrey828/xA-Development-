@@ -5,7 +5,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Esto es lo que permite crear la Release
+      contents: write
 
     steps:
       - name: Checkout Repository
@@ -25,6 +25,15 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
 
+      # ESTO ES LO QUE HACE QUE APAREZCA EN EL SUMMARY
+      - name: Upload Artifact to Summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: UltraAddon-JAR
+          path: build/libs/*.jar
+          retention-days: 5
+
+      # Mantenemos esto por si quieres versiones permanentes
       - name: Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/master') || startsWith(github.ref, 'refs/heads/main')
