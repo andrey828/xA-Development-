@@ -1,32 +1,22 @@
 {
   "schemaVersion": 1,
-  "id": "addon-template",
-  "version": "${version}",
-  "name": "Addon Template",
-  "description": "An addon template for Meteor Client addons.",
+  "id": "ultra-addon",
+  "version": "1.0.0",
+  "name": "UltraAddon",
+  "description": "Addon personalizado para Meteor Client.",
   "authors": [
-    "XMihai & simxnvoid__"
+    "Andrey828"
   ],
   "contact": {
-    "sources": "https://github.com/MeteorDevelopment/meteor-addon-template"
+    "repo": "https://github.com/andrey828/xA"
   },
+  "license": "MIT",
   "icon": "assets/template/icon.png",
-  "environment": "client",
+  "environment": "*",
   "entrypoints": {
     "meteor": [
       "com.example.addon.AddonTemplate"
     ]
-  },
-  "mixins": [
-    "addon-template.mixins.json"
-  ],
-  "custom": {
-    "meteor-client:color": "225,25,25",
-    "modmenu": {
-      "parent": {
-        "id": "meteor-client"
-      }
-    }
   },
   "depends": {
     "fabricloader": ">=0.15.0",
@@ -34,4 +24,5 @@
     "java": ">=21",
     "meteor-client": "*"
   }
-  
+}
+
