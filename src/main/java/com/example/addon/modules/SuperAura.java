@@ -15,6 +15,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.Vec3d;
 
@@ -68,14 +69,17 @@ public class SuperAura extends Module {
     }
 
     private void attackEntity(Entity target) {
-        // CORRECCIÓN: Usar coordenadas directas para evitar errores de getPos()
         Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         Vec3d targetPos = new Vec3d(target.getX(), target.getY(), target.getZ());
 
+        // ARREGLO PARA EL ERROR DE PRIVACIDAD:
         if (autoSwitch.get()) {
             int maceSlot = findMace();
-            // CORRECCIÓN: Acceso correcto al inventario en 1.21.4
-            if (maceSlot != -1) mc.player.getInventory().selectedSlot = maceSlot;
+            if (maceSlot != -1 && maceSlot != mc.player.getInventory().selectedSlot) {
+                // Cambiamos el slot usando el paquete de red para que sea seguro y el servidor lo vea
+                mc.player.getInventory().selectedSlot = maceSlot;
+                mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
+            }
         }
 
         int stepsCount = steps.get();
