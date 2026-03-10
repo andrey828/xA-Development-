@@ -1,12 +1,13 @@
-package meteordevelopment.addons.template.modules;
+package com.example.addon.modules;
 
-import meteordevelopment.addons.template.TemplateAddon;
+import com.example.addon.AddonTemplate;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.mixininterface.IPlayerInteractEntityC2SPacket;
 import meteordevelopment.meteorclient.mixininterface.IPlayerMoveC2SPacket;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -24,7 +25,6 @@ public class LanzaDMG extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgExtra = settings.createGroup("Extra Heights (Max Power)");
 
-    // --- Configuración General ---
     private final Setting<Integer> macePower = sgGeneral.add(new IntSetting.Builder().name("Mace Power").defaultValue(113).range(1, Integer.MAX_VALUE).sliderRange(1, 20000).build());
     private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder().name("Auto Switch").defaultValue(true).build());
     private final Setting<Boolean> doTotemFail = sgGeneral.add(new BoolSetting.Builder().name("Do TotemFail").defaultValue(true).build());
@@ -38,8 +38,7 @@ public class LanzaDMG extends Module {
     private boolean isWorking = false;
 
     public LanzaDMG() {
-        // AQUÍ SE CAMBIA EL NOMBRE VISIBLE EN EL JUEGO:
-        super(TemplateAddon.CATEGORY, "UltraMace", "Maximum Mace Power - No Limits.");
+        super(AddonTemplate.CATEGORY, "UltraMace", "Maximum Mace Power - No Limits.");
 
         for (int i = 3; i <= 32; i++) {
             int finalI = i;
@@ -111,7 +110,6 @@ public class LanzaDMG extends Module {
 
                     if (autoSwitch.get()) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
                 }
-
                 isWorking = false;
             }
         }
@@ -129,5 +127,5 @@ public class LanzaDMG extends Module {
         ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
         mc.getNetworkHandler().sendPacket(p);
     }
-            }
-                    
+                          }
+
