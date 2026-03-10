@@ -2,6 +2,7 @@ package com.example.addon;
 
 import com.example.addon.modules.LanzaDMG;
 import com.example.addon.modules.SuperAura;
+import com.example.addon.modules.TotemGuard;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Modules;
@@ -14,11 +15,11 @@ public class AddonTemplate extends MeteorAddon {
 
     @Override
     public void onInitialize() {
-        LOG.info("Inicializando xAddon...");
+        LOG.info("Inicializando xAddon - Para q no te rompas el papoi");
 
-        // Registramos los módulos
         Modules.get().add(new LanzaDMG());
         Modules.get().add(new SuperAura());
+        Modules.get().add(new TotemGuard());
     }
 
     @Override
