@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "ultra-addon",
+  "id": "xa-addon",
   "version": "1.0.0",
-  "name": "UltraAddon",
-  "description": "Addon personalizado para Meteor Client.",
+  "name": "xAddon",
+  "description": "Addon para Meteor Client 1.21.4",
   "authors": [
     "Andrey828"
   ],
@@ -20,7 +20,7 @@
   },
   "depends": {
     "fabricloader": ">=0.15.0",
-    "minecraft": "~1.21",
+    "minecraft": ">=1.21.4",
     "java": ">=21",
     "meteor-client": "*"
   }
