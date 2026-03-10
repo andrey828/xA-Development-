@@ -35,7 +35,7 @@ public class SuperAura extends Module {
     private int delayTimer = 0;
 
     public SuperAura() {
-        super(AddonTemplate.CATEGORY, "SuperAura", "Infinite Reach KillAura para servidores de anarquía.");
+        super(AddonTemplate.CATEGORY, "SuperAura", "Infinite Reach KillAura para anarquía.");
     }
 
     @Override
@@ -68,27 +68,25 @@ public class SuperAura extends Module {
     }
 
     private void attackEntity(Entity target) {
-        Vec3d origin = mc.player.getPos();
-        Vec3d targetPos = target.getPos();
+        // CORRECCIÓN: Usar coordenadas directas para evitar errores de getPos()
+        Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        Vec3d targetPos = new Vec3d(target.getX(), target.getY(), target.getZ());
 
-        // 1. Cambiar a la maza si está disponible
         if (autoSwitch.get()) {
             int maceSlot = findMace();
+            // CORRECCIÓN: Acceso correcto al inventario en 1.21.4
             if (maceSlot != -1) mc.player.getInventory().selectedSlot = maceSlot;
         }
 
-        // 2. Teletransporte instantáneo por pasos hacia el objetivo
         int stepsCount = steps.get();
         for (int i = 1; i <= stepsCount; i++) {
             double t = (double) i / stepsCount;
             sendPos(origin.x + (targetPos.x - origin.x) * t, origin.y + (targetPos.y - origin.y) * t, origin.z + (targetPos.z - origin.z) * t, false);
         }
 
-        // 3. Ejecutar el ataque
         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
         mc.player.swingHand(Hand.MAIN_HAND);
 
-        // 4. Volver a la posición original para que no te quedes flotando
         for (int i = stepsCount - 1; i >= 0; i--) {
             double t = (double) i / stepsCount;
             sendPos(origin.x + (targetPos.x - origin.x) * t, origin.y + (targetPos.y - origin.y) * t, origin.z + (targetPos.z - origin.z) * t, i == 0);
