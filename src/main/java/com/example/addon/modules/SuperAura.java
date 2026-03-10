@@ -72,12 +72,12 @@ public class SuperAura extends Module {
         Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         Vec3d targetPos = new Vec3d(target.getX(), target.getY(), target.getZ());
 
-        // CAMBIO AQUÍ: Usamos métodos que no dan error de "private access"
+        // SOLUCIÓN DEFINITIVA AL ERROR DE PRIVACIDAD:
         if (autoSwitch.get()) {
             int maceSlot = findMace();
-            // Verificamos el slot de forma segura
             if (maceSlot != -1) {
-                mc.player.getInventory().selectedSlot = maceSlot;
+                // Usamos el paquete de red directamente para cambiar el slot. 
+                // Esto no requiere acceso a la variable privada 'selectedSlot' del inventario.
                 mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
             }
         }
