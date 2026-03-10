@@ -10,8 +10,6 @@ import org.slf4j.LoggerFactory;
 
 public class AddonTemplate extends MeteorAddon {
     public static final Logger LOG = LoggerFactory.getLogger(AddonTemplate.class);
-    
-    // Definimos la categoría con el nombre xAddon
     public static final Category CATEGORY = new Category("xAddon");
 
     @Override
@@ -25,7 +23,6 @@ public class AddonTemplate extends MeteorAddon {
 
     @Override
     public void onRegisterCategories() {
-        // Registro de la columna xAddon
         Modules.registerCategory(CATEGORY);
     }
 
