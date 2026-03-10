@@ -10,20 +10,22 @@ import org.slf4j.LoggerFactory;
 
 public class AddonTemplate extends MeteorAddon {
     public static final Logger LOG = LoggerFactory.getLogger(AddonTemplate.class);
+    
+    // Definimos la categoría con el nombre xAddon
     public static final Category CATEGORY = new Category("xAddon");
 
     @Override
     public void onInitialize() {
-        LOG.info("Inicializando xAddon - Modo Anarquía");
+        LOG.info("Inicializando xAddon...");
 
-        // Agregamos los módulos a la lista de Meteor
+        // Registramos los módulos
         Modules.get().add(new LanzaDMG());
         Modules.get().add(new SuperAura());
     }
 
     @Override
     public void onRegisterCategories() {
-        // Registramos la columna en la interfaz
+        // Registro de la columna xAddon
         Modules.registerCategory(CATEGORY);
     }
 
