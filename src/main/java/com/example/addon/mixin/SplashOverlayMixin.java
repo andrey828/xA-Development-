@@ -7,13 +7,17 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(value = SplashOverlay.class, priority = 1001)
+// Subimos la prioridad a 1 y usamos un valor de Mixin más alto para "ganarle" a Meteor
+@Mixin(value = SplashOverlay.class, priority = 2000) 
 public class SplashOverlayMixin {
 
-    @Inject(method = "render", at = @At("HEAD"))
+    @Inject(method = "render", at = @At("HEAD"), cancellable = false)
     private void onRender(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        // Solo pintamos el fondo azul. 
-        // Si el juego arranca con esto, sabemos que el problema era el renderizado del texto.
-        context.fill(0, 0, context.getScaledWindowWidth(), context.getScaledWindowHeight(), 0xFF00AAFF);
+        // Dibujamos el fondo pero NO cancelamos el resto del renderizado
+        // Esto permite que el logo y la barra sigan su curso después
+        int width = context.getScaledWindowWidth();
+        int height = context.getScaledWindowHeight();
+        
+        context.fill(0, 0, width, height, 0xFF00AAFF);
     }
 }
