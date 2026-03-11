@@ -1,30 +1,20 @@
 package com.example.addon;
 
-import com.example.addon.modules.LanzaDMG;
-import com.example.addon.modules.SuperAura;
-import com.example.addon.modules.TotemGuard;
+import com.example.addon.modules.*;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Modules;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class AddonTemplate extends MeteorAddon {
-    public static final Logger LOG = LoggerFactory.getLogger(AddonTemplate.class);
+    // Nombre limpio para que no salga el §b feo que marcaste en la foto
     public static final Category CATEGORY = new Category("xAddon");
 
     @Override
     public void onInitialize() {
-        LOG.info("Inicializando xAddon - Para q no te rompas el papoi");
-
-        Modules.get().add(new LanzaDMG());
-        Modules.get().add(new SuperAura());
-        Modules.get().add(new TotemGuard());
-    }
-
-    @Override
-    public void onRegisterCategories() {
-        Modules.registerCategory(CATEGORY);
+        // Solo registramos los que funcionan al 100%
+        Modules m = Modules.get();
+        m.add(new SuperAura());
+        m.add(new TotemGuard());
     }
 
     @Override
