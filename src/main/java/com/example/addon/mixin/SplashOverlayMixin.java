@@ -13,7 +13,8 @@ public class SplashOverlayMixin {
 
     @Inject(method = "render", at = @At("HEAD"))
     private void onRenderHead(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        // Fondo Azul Vibrante (💙)
+        // Fondo Azul 💙 (0xFF00AAFF)
+        // Se dibuja siempre en el HEAD para tapar el rojo de Mojang
         context.fill(0, 0, context.getScaledWindowWidth(), context.getScaledWindowHeight(), 0xFF00AAFF);
     }
 
@@ -21,19 +22,19 @@ public class SplashOverlayMixin {
     private void onRenderTail(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         MinecraftClient client = MinecraftClient.getInstance();
         
-        // Verificación de seguridad para evitar crashes
-        if (client.textRenderer == null) return;
+        // SEGURIDAD TOTAL: Si algo no está cargado, NO dibujamos el texto para evitar el crash
+        if (client == null || client.textRenderer == null) return;
 
         int width = context.getScaledWindowWidth();
         int height = context.getScaledWindowHeight();
 
-        // Dibujamos el texto usando el estilo de Minecraft (con sombra y fuente de píxeles)
+        // Texto Blanco con la fuente de Minecraft
         context.drawCenteredTextWithShadow(
             client.textRenderer,
             "xA Addon",
             width / 2,
-            (height / 2) + 80, // Bajado un poco más para que no toque la barra
-            0xFFFFFFFF         // Blanco puro
+            (height / 2) + 80, 
+            0xFFFFFFFF
         );
     }
 }
