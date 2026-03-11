@@ -18,6 +18,9 @@
       "com.example.addon.AddonTemplate"
     ]
   },
+  "mixins": [
+    "xaddon.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.15.0",
     "minecraft": ">=~1.21",
