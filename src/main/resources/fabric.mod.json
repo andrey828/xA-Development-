@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "xa-addon",
   "version": "1.0.5",
-  "name": "xAddon",
+  "name": "§bxAddon",
   "description": "Addon para Meteor Client 1.21.4",
   "authors": [
     "Andrey828 & simxnvoid__"
