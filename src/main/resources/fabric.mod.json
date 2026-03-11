@@ -3,9 +3,9 @@
   "id": "xa-addon",
   "version": "1.0.5",
   "name": "§bxAddon",
-  "description": "Addon para Meteor Client 1.21.4",
+  "description": "Addon para Meteor Client 1.21.x",
   "authors": [
-    "XMihai_ & simxnvoid__"
+    "Andrey828 & simxnvoid__"
   ],
   "contact": {
     "repo": "https://github.com/andrey828/xA"
@@ -23,7 +23,7 @@
   ],
   "depends": {
     "fabricloader": ">=0.15.0",
-    "minecraft": ">~1.21",
+    "minecraft": "~1.21",
     "java": ">=21",
     "meteor-client": "*"
   }
