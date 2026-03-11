@@ -3,15 +3,10 @@ package com.example.addon.modules;
 import com.example.addon.AddonTemplate;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
-import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.mob.Monster;
-import net.minecraft.entity.passive.AnimalEntity;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
@@ -21,102 +16,87 @@ import net.minecraft.util.math.Vec3d;
 
 public class SuperAura extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
-    private final SettingGroup sgTargets = settings.createGroup("Targets");
 
-    private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder().name("Range").defaultValue(100.0).range(1, 1000).sliderRange(1, 500).build());
-    private final Setting<Integer> steps = sgGeneral.add(new IntSetting.Builder().name("Teleport Steps").defaultValue(5).range(1, 50).build());
-    private final Setting<Integer> attackDelay = sgGeneral.add(new IntSetting.Builder().name("Attack Delay").defaultValue(0).range(0, 20).build());
-    private final Setting<Boolean> rotate = sgGeneral.add(new BoolSetting.Builder().name("Rotate").defaultValue(true).build());
-    private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder().name("Auto Switch Mace").defaultValue(true).build());
+    // AJUSTES DE DISTANCIA
+    private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder()
+        .name("Range")
+        .description("Distancia máxima de teletransporte para pegar.")
+        .defaultValue(60.0)
+        .range(1, 1000)
+        .build()
+    );
 
-    private final Setting<Boolean> targetPlayers = sgTargets.add(new BoolSetting.Builder().name("Players").defaultValue(true).build());
-    private final Setting<Boolean> targetMonsters = sgTargets.add(new BoolSetting.Builder().name("Monsters").defaultValue(true).build());
-    private final Setting<Boolean> targetAnimals = sgTargets.add(new BoolSetting.Builder().name("Animals").defaultValue(false).build());
+    private final Setting<Double> stepDistance = sgGeneral.add(new DoubleSetting.Builder()
+        .name("Step Distance")
+        .description("Cuántos bloques recorre cada paquete. (8.0 es ideal para no laguear)")
+        .defaultValue(8.0)
+        .range(1, 20)
+        .build()
+    );
 
-    private int delayTimer = 0;
+    private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder()
+        .name("Auto Switch")
+        .description("Cambia a la maza automáticamente al atacar.")
+        .defaultValue(true)
+        .build()
+    );
 
     public SuperAura() {
-        super(AddonTemplate.CATEGORY, "SuperAura", "Infinite Reach KillAura para anarquía.");
-    }
-
-    @Override
-    public void onActivate() {
-        delayTimer = 0;
+        super(AddonTemplate.CATEGORY, "SuperAura", "Pega desde lejos optimizando paquetes.");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.world == null || mc.player == null || mc.getNetworkHandler() == null) return;
+        if (mc.world == null || mc.player == null) return;
 
-        if (delayTimer > 0) {
-            delayTimer--;
-            return;
-        }
-
+        // Buscamos una entidad viva que no seamos nosotros y esté en rango
         for (Entity target : mc.world.getEntities()) {
-            if (!isValid(target)) continue;
+            if (!(target instanceof LivingEntity) || target == mc.player || !target.isAlive()) continue;
             if (mc.player.distanceTo(target) > range.get()) continue;
 
-            if (rotate.get()) {
-                Rotations.rotate(Rotations.getYaw(target), Rotations.getPitch(target), 10, () -> attackEntity(target));
-            } else {
-                attackEntity(target);
-            }
-
-            delayTimer = attackDelay.get();
-            break; 
+            attackEntity(target);
+            break; // Atacamos a uno por tick para no saturar
         }
     }
 
     private void attackEntity(Entity target) {
-        Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
-        Vec3d targetPos = new Vec3d(target.getX(), target.getY(), target.getZ());
+        Vec3d origin = mc.player.getPos();
+        Vec3d targetPos = target.getPos();
+        double distance = origin.distanceTo(targetPos);
 
-        // SOLUCIÓN DEFINITIVA AL ERROR DE PRIVACIDAD:
+        // 1. Auto-Switch a la Maza
         if (autoSwitch.get()) {
-            int maceSlot = findMace();
-            if (maceSlot != -1) {
-                // Usamos el paquete de red directamente para cambiar el slot. 
-                // Esto no requiere acceso a la variable privada 'selectedSlot' del inventario.
-                mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
+            for (int i = 0; i < 9; i++) {
+                if (mc.player.getInventory().getStack(i).getItem() == Items.MACE) {
+                    if (mc.player.getInventory().selectedSlot != i) {
+                        mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(i));
+                    }
+                    break;
+                }
             }
         }
 
-        int stepsCount = steps.get();
-        for (int i = 1; i <= stepsCount; i++) {
-            double t = (double) i / stepsCount;
-            sendPos(origin.x + (targetPos.x - origin.x) * t, origin.y + (targetPos.y - origin.y) * t, origin.z + (targetPos.z - origin.z) * t, false);
+        // 2. TELETRANSPORTE DE IDA (Optimizado por distancia)
+        // En lugar de pasos fijos, enviamos un paquete cada 'stepDistance' bloques
+        for (double d = stepDistance.get(); d < distance; d += stepDistance.get()) {
+            Vec3d path = origin.add(targetPos.subtract(origin).multiply(d / distance));
+            sendPos(path.x, path.y, path.z);
         }
 
+        // 3. POSICIÓN FINAL Y GOLPE
+        sendPos(targetPos.x, targetPos.y, targetPos.z);
         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
         mc.player.swingHand(Hand.MAIN_HAND);
 
-        for (int i = stepsCount - 1; i >= 0; i--) {
-            double t = (double) i / stepsCount;
-            sendPos(origin.x + (targetPos.x - origin.x) * t, origin.y + (targetPos.y - origin.y) * t, origin.z + (targetPos.z - origin.z) * t, i == 0);
-        }
+        // 4. REGRESO INSTANTÁNEO (Un solo paquete para ahorrar el 50% de datos)
+        sendPos(origin.x, origin.y, origin.z);
     }
 
-    private void sendPos(double x, double y, double z, boolean onGround) {
-        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, onGround, mc.player.horizontalCollision));
-    }
-
-    private int findMace() {
-        for (int i = 0; i < 9; i++) {
-            if (mc.player.getInventory().getStack(i).getItem() == Items.MACE) return i;
+    private void sendPos(double x, double y, double z) {
+        // Importante: 'true' en onGround para que TotemGuard no detecte caída falsa
+        if (mc.getNetworkHandler() != null) {
+            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, true, mc.player.horizontalCollision));
         }
-        return -1;
-    }
-
-    private boolean isValid(Entity entity) {
-        if (!(entity instanceof LivingEntity) || !entity.isAlive() || entity == mc.player) return false;
-        if (entity instanceof PlayerEntity) {
-            if (!targetPlayers.get()) return false;
-            if (Friends.get().isFriend((PlayerEntity) entity)) return false;
-        }
-        if (entity instanceof Monster && !targetMonsters.get()) return false;
-        if (entity instanceof AnimalEntity && !targetAnimals.get()) return false;
-        return true;
     }
 }
 
