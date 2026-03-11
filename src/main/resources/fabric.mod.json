@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "id": "xa-addon",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "name": "xAddon",
   "description": "Addon para Meteor Client 1.21.4",
   "authors": [
-    "Andrey828"
+    "Andrey828 & simxnvoid__"
   ],
   "contact": {
     "repo": "https://github.com/andrey828/xA"
