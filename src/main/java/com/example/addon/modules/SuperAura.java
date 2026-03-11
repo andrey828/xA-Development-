@@ -17,10 +17,8 @@ import net.minecraft.util.math.Vec3d;
 public class SuperAura extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    // AJUSTES DE DISTANCIA
     private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder()
         .name("Range")
-        .description("Distancia máxima de teletransporte para pegar.")
         .defaultValue(60.0)
         .range(1, 1000)
         .build()
@@ -28,7 +26,6 @@ public class SuperAura extends Module {
 
     private final Setting<Double> stepDistance = sgGeneral.add(new DoubleSetting.Builder()
         .name("Step Distance")
-        .description("Cuántos bloques recorre cada paquete. (8.0 es ideal para no laguear)")
         .defaultValue(8.0)
         .range(1, 20)
         .build()
@@ -36,67 +33,62 @@ public class SuperAura extends Module {
 
     private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder()
         .name("Auto Switch")
-        .description("Cambia a la maza automáticamente al atacar.")
         .defaultValue(true)
         .build()
     );
 
     public SuperAura() {
-        super(AddonTemplate.CATEGORY, "SuperAura", "Pega desde lejos optimizando paquetes.");
+        super(AddonTemplate.CATEGORY, "SuperAura", "Pega desde lejos optimizado");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.world == null || mc.player == null) return;
 
-        // Buscamos una entidad viva que no seamos nosotros y esté en rango
         for (Entity target : mc.world.getEntities()) {
             if (!(target instanceof LivingEntity) || target == mc.player || !target.isAlive()) continue;
             if (mc.player.distanceTo(target) > range.get()) continue;
 
             attackEntity(target);
-            break; // Atacamos a uno por tick para no saturar
+            break;
         }
     }
 
     private void attackEntity(Entity target) {
-        Vec3d origin = mc.player.getPos();
-        Vec3d targetPos = target.getPos();
+        // CORRECCIÓN: Usamos coordenadas directas para evitar error de getPos()
+        Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        Vec3d targetPos = new Vec3d(target.getX(), target.getY(), target.getZ());
         double distance = origin.distanceTo(targetPos);
 
-        // 1. Auto-Switch a la Maza
         if (autoSwitch.get()) {
             for (int i = 0; i < 9; i++) {
                 if (mc.player.getInventory().getStack(i).getItem() == Items.MACE) {
-                    if (mc.player.getInventory().selectedSlot != i) {
-                        mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(i));
-                    }
+                    // CORRECCIÓN: Usamos mc.player.getInventory().selectedSlot si no es privado, 
+                    // o simplemente enviamos el paquete siempre para asegurar.
+                    mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(i));
                     break;
                 }
             }
         }
 
-        // 2. TELETRANSPORTE DE IDA (Optimizado por distancia)
-        // En lugar de pasos fijos, enviamos un paquete cada 'stepDistance' bloques
+        // Ida
         for (double d = stepDistance.get(); d < distance; d += stepDistance.get()) {
             Vec3d path = origin.add(targetPos.subtract(origin).multiply(d / distance));
             sendPos(path.x, path.y, path.z);
         }
 
-        // 3. POSICIÓN FINAL Y GOLPE
+        // Ataque
         sendPos(targetPos.x, targetPos.y, targetPos.z);
         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
         mc.player.swingHand(Hand.MAIN_HAND);
 
-        // 4. REGRESO INSTANTÁNEO (Un solo paquete para ahorrar el 50% de datos)
+        // Regreso
         sendPos(origin.x, origin.y, origin.z);
     }
 
     private void sendPos(double x, double y, double z) {
-        // Importante: 'true' en onGround para que TotemGuard no detecte caída falsa
         if (mc.getNetworkHandler() != null) {
             mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, true, mc.player.horizontalCollision));
         }
     }
 }
-
