@@ -25,15 +25,15 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
 
-      # ESTO ES LO QUE HACE QUE APAREZCA EN EL SUMMARY
+      # Guarda el archivo en la pestaña Summary del Action
       - name: Upload Artifact to Summary
         uses: actions/upload-artifact@v4
         with:
-          name: xA Addon 
+          name: xA-Addon 
           path: build/libs/*.jar
           retention-days: 5
 
-      # Mantenemos esto por si quieres versiones permanentes
+      # Crea o actualiza la Release en GitHub
       - name: Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/master') || startsWith(github.ref, 'refs/heads/main')
@@ -42,4 +42,6 @@ jobs:
           name: Dev Build
           prerelease: true
           files: build/libs/*.jar
+          overwrite: true
+          make_latest: true
           
