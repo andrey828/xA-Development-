@@ -3,9 +3,11 @@
   "package": "com.example.addon.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "SplashOverlayMixin"
+    "SplashOverlayMixin",
+    "PlayerMoveC2SPacketAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
   }
 }
+
