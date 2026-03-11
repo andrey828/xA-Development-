@@ -36,6 +36,7 @@ jobs:
       # Mantenemos esto por si quieres versiones permanentes
       - name: Release
         uses: softprops/action-gh-release@v2
+        overwrite: true
         if: startsWith(github.ref, 'refs/heads/master') || startsWith(github.ref, 'refs/heads/main')
         with:
           tag_name: snapshot
