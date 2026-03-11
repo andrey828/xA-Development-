@@ -23,28 +23,27 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
 
-      # Este paso te permite descargar el jar desde la pestaña Actions -> Summary
+      # Este paso siempre funciona para descargar el jar manualmente
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: xA-Addon-Build
           path: build/libs/*.jar
 
-      # Crear la release usando el CLI oficial de GitHub (más robusto)
+      # Actualizar la Release borrando la anterior primero
       - name: Update Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Borra el tag local y remoto si ya existen para "resetear" la release
-          git tag -d snapshot || true
+          # 1. Intentar borrar la release existente (si no existe, no pasa nada)
+          gh release delete snapshot --yes || true
+          
+          # 2. Intentar borrar el tag remoto (si no existe, no pasa nada)
           git push origin :refs/tags/snapshot || true
           
-          # Usa el comando oficial de GitHub para crear la release y subir los archivos
-          # --clobber sobreescribe archivos si ya existen
+          # 3. Crear la release desde cero con el archivo nuevo
           gh release create snapshot build/libs/*.jar \
             --title "Dev Build" \
             --notes "Compilación automática de xAddon" \
-            --prerelease \
-            --generate-notes \
-            --clobber
+            --prerelease
             
