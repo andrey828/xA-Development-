@@ -22,4 +22,3 @@ public class AddonTemplate extends MeteorAddon {
         return "com.example.addon";
     }
 }
-
