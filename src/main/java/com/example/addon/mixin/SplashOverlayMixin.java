@@ -1,47 +1,39 @@
 package com.example.addon.mixin;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.SplashOverlay;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.ModifyArgs;
+import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
+import net.minecraft.client.gui.DrawContext;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import net.minecraft.client.MinecraftClient;
 
 @Mixin(SplashOverlay.class)
 public class SplashOverlayMixin {
 
-    // 1. DIBUJAR EL FONDO AZUL VIBRANTE (💙)
-    // Se ejecuta al inicio ('HEAD') para cubrir el color rojo original de Mojang.
+    // Cambiamos el color de fondo interceptando el método 'fill' original de Mojang
     @Inject(method = "render", at = @At("HEAD"))
-    private void onRenderHead(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        // COLOR DEL FONDO: Azul Cerúleo Vibrante (💙)
-        // El formato es 0x AARRGGBB (Alpha, Rojo, Verde, Azul).
-        int colorFondo = 0xFF00AAFF; 
-
-        // Rellenamos toda la pantalla con el color azul.
-        context.fill(0, 0, context.getScaledWindowWidth(), context.getScaledWindowHeight(), colorFondo);
+    private void onRender(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        // Azul 💙 (0xFF00AAFF)
+        int colorAzul = 0xFF00AAFF;
+        
+        // Dibujamos nuestro fondo azul
+        context.fill(0, 0, context.getScaledWindowWidth(), context.getScaledWindowHeight(), colorAzul);
     }
 
-    // 2. DIBUJAR EL TEXTO "xA Addon" EN BLANCO
-    // Se ejecuta al final ('TAIL') para asegurar que el motor de texto esté listo.
+    // Dibujamos el texto al final, solo si el render de texto está listo
     @Inject(method = "render", at = @At("TAIL"))
-    private void onRenderTail(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        int width = context.getScaledWindowWidth();
-        int height = context.getScaledWindowHeight();
-
-        // COLOR DEL TEXTO: Blanco Puro.
-        int colorTexto = 0xFFFFFFFF; 
-
-        // Dibujamos el texto centrado con sombra para que sea legible y nítido.
-        // Se posiciona un poco más abajo de la barra de carga original.
-        context.drawCenteredTextWithShadow(
-            MinecraftClient.getInstance().textRenderer,
-            "xA Addon",
-            width / 2, // Posición horizontal (centrado)
-            (height / 2) + 70, // Posición vertical (justo debajo de la barra)
-            colorTexto
-        );
+    private void drawText(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        if (MinecraftClient.getInstance().textRenderer != null) {
+            context.drawCenteredTextWithShadow(
+                MinecraftClient.getInstance().textRenderer,
+                "xA Addon",
+                context.getScaledWindowWidth() / 2,
+                (context.getScaledWindowHeight() / 2) + 70,
+                0xFFFFFFFF // Blanco
+            );
+        }
     }
 }
-
