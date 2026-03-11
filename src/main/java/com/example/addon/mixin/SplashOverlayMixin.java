@@ -1,6 +1,5 @@
 package com.example.addon.mixin;
 
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.SplashOverlay;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,19 +12,8 @@ public class SplashOverlayMixin {
 
     @Inject(method = "render", at = @At("HEAD"))
     private void onRender(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        // 1. Dibujar el fondo Azul 💙
+        // Solo pintamos el fondo azul. 
+        // Si el juego arranca con esto, sabemos que el problema era el renderizado del texto.
         context.fill(0, 0, context.getScaledWindowWidth(), context.getScaledWindowHeight(), 0xFF00AAFF);
-        
-        // 2. Intentar dibujar el texto inmediatamente después
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null && client.textRenderer != null) {
-            context.drawCenteredTextWithShadow(
-                client.textRenderer,
-                "xA Addon",
-                context.getScaledWindowWidth() / 2,
-                (context.getScaledWindowHeight() / 2) + 80,
-                0xFFFFFFFF // Blanco
-            );
-        }
     }
 }
