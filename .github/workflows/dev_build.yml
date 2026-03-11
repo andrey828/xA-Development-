@@ -29,7 +29,7 @@ jobs:
       - name: Upload Artifact to Summary
         uses: actions/upload-artifact@v4
         with:
-          name: UltraAddon-JAR
+          name: xA Addon 1.21- 1.21.11
           path: build/libs/*.jar
           retention-days: 5
 
