@@ -1,9 +1,7 @@
 package com.example.addon.mixin;
 
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.SplashOverlay;
-import net.minecraft.util.math.MathHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -13,32 +11,25 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class SplashOverlayMixin {
 
     @Inject(method = "render", at = @At("HEAD"))
-    private void onRenderHead(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        // Usamos el tiempo del sistema para crear el efecto arcoíris
-        float time = (System.currentTimeMillis() % 5000L) / 5000.0f;
+    private void onRender(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        // Cálculo de color RGB manual (Universal: funciona en cualquier Java)
+        long time = System.currentTimeMillis();
+        float hue = (time % 5000L) / 5000.0f;
         
-        // Convertimos el tiempo en colores Rojo, Verde y Azul usando Seno
-        // Esto crea un degradado suave sin necesidad de importar java.awt.Color
-        int r = (int) (Math.sin(time * 2 * Math.PI) * 127 + 128);
-        int g = (int) (Math.sin((time + 0.33) * 2 * Math.PI) * 127 + 128);
-        int b = (int) (Math.sin((time + 0.66) * 2 * Math.PI) * 127 + 128);
+        // Fórmula de espectro rápido
+        float q = hue * 6;
+        int r = (int) (Math.min(Math.max(Math.abs(q - 3) - 1, 0), 1) * 255);
+        int g = (int) (Math.min(Math.max(2 - Math.abs(q - 2), 0), 1) * 255);
+        int b = (int) (Math.min(Math.max(2 - Math.abs(q - 4), 0), 1) * 255);
 
-        // Combinamos los colores en un formato HEX (0xAARRGGBB)
-        int finalColor = (255 << 24) | (r << 16) | (g << 8) | b;
+        // Suavizado para que sea tipo pastel (Saturación 0.5)
+        r = (int) (r * 0.5 + 127);
+        g = (int) (g * 0.5 + 127);
+        b = (int) (b * 0.5 + 127);
 
-        // Dibujamos el fondo
-        context.fill(0, 0, context.getScaledWindowWidth(), context.getScaledWindowHeight(), finalColor);
-    }
+        int color = (255 << 24) | (r << 16) | (g << 8) | b;
 
-    @Inject(method = "render", at = @At("TAIL"))
-    private void onRenderTail(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        context.drawCenteredTextWithShadow(
-            MinecraftClient.getInstance().textRenderer,
-            "xA Addon",
-            context.getScaledWindowWidth() / 2,
-            (context.getScaledWindowHeight() / 2) + 70,
-            0xFFFFFFFF 
-        );
+        // Dibujamos el fondo cubriendo toda la pantalla
+        context.fill(0, 0, context.getScaledWindowWidth(), context.getScaledWindowHeight(), color);
     }
 }
-
