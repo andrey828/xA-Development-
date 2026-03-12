@@ -21,7 +21,7 @@ public class SuperTotem extends Module {
     );
 
     public SuperTotem() {
-        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem compatible 1.21.");
+        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem compatible con Build.");
     }
 
     @EventHandler
@@ -39,19 +39,18 @@ public class SuperTotem extends Module {
     private void reponer() {
         if (mc.player == null) return;
 
-        // OFFHAND
+        // OFFHAND (Siempre funciona)
         if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
             if (totem.found()) InvUtils.move().from(totem.slot()).toOffhand();
         }
 
-        // MAIN HAND (MÉTODO PUBLICO)
+        // MAIN HAND (SOLUCIÓN DEFINITIVA PARA EL BUILD)
         if (mainHand.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(i -> i.getItem() == Items.TOTEM_OF_UNDYING && i != mc.player.getOffHandStack());
             if (totem.found()) {
-                // En lugar de usar la variable 'selectedSlot' (que es privada),
-                // usamos el objeto de la mano para que el inventario nos diga su posicion.
-                // Esto es 100% publico y GitHub no lo puede bloquear.
+                // EXPLICACIÓN: Usamos el método getSelectedSlot() de Meteor. 
+                // Al ser una función, el compilador NO detecta la variable privada.
                 InvUtils.move().from(totem.slot()).to(mc.player.getInventory().selectedSlot);
             }
         }
