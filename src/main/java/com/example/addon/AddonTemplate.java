@@ -11,11 +11,16 @@ public class AddonTemplate extends MeteorAddon {
 
     @Override
     public void onInitialize() {
-        Modules.registerCategory(CATEGORY);
-
+        // Aquí NO registramos la categoría, solo añadimos los módulos
         Modules m = Modules.get();
         m.add(new SuperAura());
         m.add(new TotemGuard());
+    }
+
+    @Override
+    public void onRegisterCategories() {
+        // ESTO es lo que pide el crash. El registro va AQUÍ.
+        Modules.registerCategory(CATEGORY);
     }
 
     @Override
