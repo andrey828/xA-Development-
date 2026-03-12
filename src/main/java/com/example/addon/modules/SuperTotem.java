@@ -1,60 +1,51 @@
 package com.example.addon.modules;
 
 import com.example.addon.AddonTemplate;
-import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
+import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.player.FindItemResult;
-import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.Hand;
 
-public class SuperTotem extends Module {
+public class SuperAura extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    private final Setting<Boolean> mainHand = sgGeneral.add(new BoolSetting.Builder()
-        .name("main-hand")
-        .description("Equipa el totem en la mano principal si no hay uno.")
-        .defaultValue(false)
+    private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder()
+        .name("range")
+        .defaultValue(4.5)
+        .min(1)
+        .sliderMax(6)
         .build()
     );
 
-    public SuperTotem() {
-        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem compatible con cualquier Build.");
-    }
-
-    @EventHandler
-    private void onReceivePacket(PacketEvent.Receive event) {
-        if (event.packet instanceof EntityStatusS2CPacket p && p.getStatus() == 35 && p.getEntity(mc.world) == mc.player) {
-            reponer();
-        }
+    public SuperAura() {
+        super(AddonTemplate.CATEGORY, "SuperAura", "Ataca al jugador mas cercano.");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        reponer();
-    }
+        if (mc.player == null || mc.world == null) return;
 
-    private void reponer() {
-        if (mc.player == null) return;
+        Entity target = null;
+        double closestDist = range.get();
 
-        // Reponemos Offhand (Mano izquierda)
-        if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
-            FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
-            if (totem.found()) InvUtils.move().from(totem.slot()).toOffhand();
+        for (Entity entity : mc.world.getEntities()) {
+            if (!(entity instanceof PlayerEntity) || entity == mc.player || !entity.isAlive()) continue;
+            if (!Friends.get().shouldAttack((PlayerEntity) entity)) continue;
+
+            double dist = mc.player.distanceTo(entity);
+            if (dist < closestDist) {
+                closestDist = dist;
+                target = entity;
+            }
         }
 
-        // Reponemos Mano Principal (SIN USAR SELECTEDSLOT)
-        if (mainHand.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
-            FindItemResult totem = InvUtils.find(i -> i.getItem() == Items.TOTEM_OF_UNDYING && i != mc.player.getOffHandStack());
-            
-            if (totem.found()) {
-                // SOLUCIÓN: Usamos el ID de slot que nos da Meteor para nuestra propia mano
-                // Esto es 100% público y el compilador NO puede dar error.
-                InvUtils.move().from(totem.slot()).to(mc.player.getInventory().selectedSlot);
-            }
+        if (target != null && mc.player.getAttackCooldownProgress(0.5f) >= 0.9f) {
+            mc.interactionManager.attackEntity(mc.player, target);
+            mc.player.swingHand(Hand.MAIN_HAND);
         }
     }
 }
