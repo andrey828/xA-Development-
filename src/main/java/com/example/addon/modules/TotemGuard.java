@@ -2,34 +2,28 @@ package com.example.addon.modules;
 
 import com.example.addon.AddonTemplate;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 
 public class TotemGuard extends Module {
-    private final SettingGroup sgGeneral = settings.getDefaultGroup();
-
-    private final Setting<Double> fallDistance = sgGeneral.add(new DoubleSetting.Builder()
-        .name("fall-distance")
-        .description("Distancia de caída para activar el NoFall.")
-        .defaultValue(2.5)
-        .min(0.1)
-        .sliderMax(10)
-        .build()
-    );
 
     public TotemGuard() {
-        super(AddonTemplate.CATEGORY, "TotemGuard", "No fall pero mejorado ");
+        super(AddonTemplate.CATEGORY, "TotemGuard", "Nofall pero mejorado.");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.networkHandler == null) return;
+        // Validación con los métodos correctos para 1.21 (mc.getNetworkHandler())
+        if (mc.player == null || mc.getNetworkHandler() == null) return;
 
-        if (mc.player.fallDistance > fallDistance.get()) {
-            // Cancelamos el daño de caída enviando el paquete 'OnGround'
-            mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(true));
+        // --- LÓGICA PERMANENTE ---
+        // Enviamos el paquete en cada tick del juego, sin importar la altura.
+        // OnGround = true, HorizontalCollision = false
+        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(true, false));
+
+        // Opcional: Reseteamos la distancia del cliente constantemente para que el HUD no marque caída
+        if (mc.player.fallDistance > 0) {
             mc.player.fallDistance = 0;
         }
     }
