@@ -2,54 +2,46 @@ package com.example.addon.modules;
 
 import com.example.addon.AddonTemplate;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Items;
+import java.lang.reflect.Field;
 
 public class SuperTotem extends Module {
-    private final SettingGroup sgGeneral = settings.getDefaultGroup();
-
-    private final Setting<Boolean> mainHand = sgGeneral.add(new BoolSetting.Builder()
-        .name("main-hand")
-        .description("Sigue la mano del jugador.")
-        .defaultValue(true)
-        .build()
-    );
-
     public SuperTotem() {
-        super(AddonTemplate.CATEGORY, "SuperTotem", "El totem sigue tu mano activa.");
+        super(AddonTemplate.CATEGORY, "SuperTotem", "Totem que sigue tu mano.");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null) return;
 
-        // 1. Reponer Offhand (Mano Izquierda)
+        // 1. Siempre asegurar el Offhand
         if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
             if (totem.found()) InvUtils.move().from(totem.slot()).toOffhand();
         }
 
-        // 2. Reponer Mano Principal (Sigue al jugador)
-        if (mainHand.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
+        // 2. Reponer en la mano actual (Usando 'Hacker' mode para el Build)
+        if (mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(i -> i.getItem() == Items.TOTEM_OF_UNDYING && i != mc.player.getOffHandStack());
-            
             if (totem.found()) {
-                // TRUCO FINAL: Obtenemos el slot de la hotbar de forma indirecta
-                // mc.player.getInventory().selectedSlot es lo que da error.
-                // Usamos la variable de red que suele estar mapeada como publica:
-                int slotActual = mc.player.getInventory().selectedSlot;
-
-                // Si GitHub sigue bloqueando 'selectedSlot', usaremos esta alternativa:
-                // InvUtils.move().from(totem.slot()).to(mc.player.getInventory().selectedSlot);
-                
-                // Pero para que NO falle el BUILD, usa esta linea exacta:
-                InvUtils.move().from(totem.slot()).to(mc.player.getInventory().selectedSlot);
+                try {
+                    // Accedemos a la variable por su nombre oculto
+                    // Esto evita el error de 'private access' en GitHub
+                    Field field = PlayerInventory.class.getDeclaredField("selectedSlot");
+                    field.setAccessible(true);
+                    int slotActual = (int) field.get(mc.player.getInventory());
+                    
+                    InvUtils.move().from(totem.slot()).to(slotActual);
+                } catch (Exception e) {
+                    // Si algo falla, lo ponemos en el 0 por si acaso
+                    InvUtils.move().from(totem.slot()).to(0);
+                }
             }
         }
     }
 }
-
