@@ -47,7 +47,7 @@ public class SuperTotem extends Module {
         if (mainHand.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(i -> i.getItem() == Items.TOTEM_OF_UNDYING && i != mc.player.getOffHandStack());
             if (totem.found()) {
-                // CORRECCIÓN 
+                // SOLUCIÓN: Usamos InvUtils para que él decida el slot de la mano principal sin nombrar variables privadas
                 InvUtils.move().from(totem.slot()).to(mc.player.getInventory().selectedSlot);
             }
         }
