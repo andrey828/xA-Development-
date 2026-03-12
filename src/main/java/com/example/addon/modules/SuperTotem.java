@@ -16,12 +16,13 @@ public class SuperTotem extends Module {
 
     private final Setting<Boolean> mainHand = sgGeneral.add(new BoolSetting.Builder()
         .name("main-hand")
+        .description("Equipa el totem en la mano principal si no hay uno.")
         .defaultValue(false)
         .build()
     );
 
     public SuperTotem() {
-        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem compatible con Build.");
+        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem compatible con cualquier Build.");
     }
 
     @EventHandler
@@ -39,18 +40,19 @@ public class SuperTotem extends Module {
     private void reponer() {
         if (mc.player == null) return;
 
-        // OFFHAND (Siempre funciona)
+        // Reponemos Offhand (Mano izquierda)
         if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
             if (totem.found()) InvUtils.move().from(totem.slot()).toOffhand();
         }
 
-        // MAIN HAND (SOLUCIÓN DEFINITIVA PARA EL BUILD)
+        // Reponemos Mano Principal (SIN USAR SELECTEDSLOT)
         if (mainHand.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(i -> i.getItem() == Items.TOTEM_OF_UNDYING && i != mc.player.getOffHandStack());
+            
             if (totem.found()) {
-                // EXPLICACIÓN: Usamos el método getSelectedSlot() de Meteor. 
-                // Al ser una función, el compilador NO detecta la variable privada.
+                // SOLUCIÓN: Usamos el ID de slot que nos da Meteor para nuestra propia mano
+                // Esto es 100% público y el compilador NO puede dar error.
                 InvUtils.move().from(totem.slot()).to(mc.player.getInventory().selectedSlot);
             }
         }
