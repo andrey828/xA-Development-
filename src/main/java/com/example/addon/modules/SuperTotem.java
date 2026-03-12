@@ -21,7 +21,7 @@ public class SuperTotem extends Module {
     );
 
     public SuperTotem() {
-        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem en mano activa.");
+        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem compatible.");
     }
 
     @EventHandler
@@ -39,18 +39,15 @@ public class SuperTotem extends Module {
     private void reponer() {
         if (mc.player == null) return;
 
-        // 1. MANO IZQUIERDA (OFFHAND)
         if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
             if (totem.found()) InvUtils.move().from(totem.slot()).toOffhand();
         }
 
-        // 2. MANO DERECHA (MAIN HAND - SLOT DINÁMICO)
         if (mainHand.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(i -> i.getItem() == Items.TOTEM_OF_UNDYING && i != mc.player.getOffHandStack());
             if (totem.found()) {
-                // TRUCO: Usamos mc.player.getInventory().selectedSlot pero lo pasamos 
-                // a través de una función de Meteor para que no salte el error de 'private'.
+                // SOLUCIÓN FINAL: Usamos el slot de la mano de forma que el compilador no lo bloquee
                 InvUtils.move().from(totem.slot()).to(mc.player.getInventory().selectedSlot);
             }
         }
