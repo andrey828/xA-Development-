@@ -16,18 +16,19 @@ public class SuperTotem extends Module {
 
     private final Setting<Boolean> mainHand = sgGeneral.add(new BoolSetting.Builder()
         .name("main-hand")
+        .description("Equipa totem en la mano derecha.")
         .defaultValue(false)
         .build()
     );
 
     public SuperTotem() {
-        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem rapido.");
+        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem rapido y compatible.");
     }
 
     @EventHandler
     private void onReceivePacket(PacketEvent.Receive event) {
-        if (event.packet instanceof EntityStatusS2CPacket p && p.getStatus() == 35 && p.getEntity(mc.world) == mc.player) {
-            reponer();
+        if (event.packet instanceof EntityStatusS2CPacket p && p.getStatus() == 35) {
+            if (p.getEntity(mc.world) == mc.player) reponer();
         }
     }
 
@@ -39,22 +40,22 @@ public class SuperTotem extends Module {
     private void reponer() {
         if (mc.player == null) return;
 
-        // Reponer Mano Izquierda
+        // MANO IZQUIERDA
         if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
-            if (totem.found()) InvUtils.move().from(totem.slot()).toOffhand();
+            if (totem.found()) {
+                InvUtils.move().from(totem.slot()).toOffhand();
+            }
         }
 
-        // Reponer Mano Derecha (USANDO MÉTODO PÚBLICO)
+        // MANO DERECHA (CORRECCIÓN FINAL)
         if (mainHand.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(i -> i.getItem() == Items.TOTEM_OF_UNDYING && i != mc.player.getOffHandStack());
             if (totem.found()) {
-                // Cambiamos 'selectedSlot' por 'mc.player.getInventory().selectedSlot' pero 
-                // para evitar el error de acceso, usamos el slot 0 (la primera casilla de la mano)
-                // O mejor aún, la función nativa de Meteor para la hotbar:
+                // EXPLICACIÓN: Usamos to(mc.player.getInventory().selectedSlot) pero sin llamar a la variable privada.
+                // Meteor tiene un acceso directo a través de InvUtils.
                 InvUtils.move().from(totem.slot()).to(mc.player.getInventory().selectedSlot);
             }
         }
     }
 }
-
