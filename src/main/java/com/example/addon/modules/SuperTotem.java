@@ -19,24 +19,35 @@ public class SuperTotem extends Module {
         .build()
     );
 
+    private int delay;
+
     public SuperTotem() {
-        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem dinámico.");
+        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem estable sin parpadeos.");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null) return;
+        if (mc.player == null || mc.currentScreen != null) return;
+
+        if (delay > 0) {
+            delay--;
+            return;
+        }
 
         if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
-            if (totem.found()) InvUtils.move().from(totem.slot()).toOffhand();
+            if (totem.found()) {
+                InvUtils.move().from(totem.slot()).toOffhand();
+                delay = 2; 
+                return;
+            }
         }
 
         if (mainHand.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(i -> i.getItem() == Items.TOTEM_OF_UNDYING && i != mc.player.getOffHandStack());
             
             if (totem.found()) {
-                int handSlot = 0;
+                int handSlot = -1;
                 ItemStack handStack = mc.player.getMainHandStack();
                 
                 for (int i = 0; i < 9; i++) {
@@ -45,8 +56,11 @@ public class SuperTotem extends Module {
                         break;
                     }
                 }
-                
-                InvUtils.move().from(totem.slot()).to(handSlot);
+
+                if (handSlot != -1) {
+                    InvUtils.move().from(totem.slot()).to(handSlot);
+                    delay = 2;
+                }
             }
         }
     }
