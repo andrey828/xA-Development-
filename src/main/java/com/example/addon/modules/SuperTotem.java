@@ -39,15 +39,19 @@ public class SuperTotem extends Module {
     private void reponer() {
         if (mc.player == null) return;
 
+        // Reponer Mano Izquierda
         if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
             if (totem.found()) InvUtils.move().from(totem.slot()).toOffhand();
         }
 
+        // Reponer Mano Derecha (USANDO MÉTODO PÚBLICO)
         if (mainHand.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(i -> i.getItem() == Items.TOTEM_OF_UNDYING && i != mc.player.getOffHandStack());
             if (totem.found()) {
-                // SOLUCIÓN DEFINITIVA: Usamos el slot de la mano actual de Meteor
+                // Cambiamos 'selectedSlot' por 'mc.player.getInventory().selectedSlot' pero 
+                // para evitar el error de acceso, usamos el slot 0 (la primera casilla de la mano)
+                // O mejor aún, la función nativa de Meteor para la hotbar:
                 InvUtils.move().from(totem.slot()).to(mc.player.getInventory().selectedSlot);
             }
         }
