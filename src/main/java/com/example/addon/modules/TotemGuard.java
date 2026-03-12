@@ -1,30 +1,37 @@
 package com.example.addon.modules;
 
 import com.example.addon.AddonTemplate;
-import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 
 public class TotemGuard extends Module {
-
     public TotemGuard() {
-        super(AddonTemplate.CATEGORY, "TotemGuard", "Nofall pero mejorado.");
+        super(AddonTemplate.CATEGORY, "TotemGuard", "Inmunidad total a UltraMace y caida.");
     }
 
     @EventHandler
-    private void onTick(TickEvent.Pre event) {
-        // Validación con los métodos correctos para 1.21 (mc.getNetworkHandler())
-        if (mc.player == null || mc.getNetworkHandler() == null) return;
+    private void onSendPacket(PacketEvent.Send event) {
+        if (mc.player == null) return;
 
-        // --- LÓGICA PERMANENTE ---
-        // Enviamos el paquete en cada tick del juego, sin importar la altura.
-        // OnGround = true, HorizontalCollision = false
-        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(true, false));
+        if (event.packet instanceof PlayerMoveC2SPacket packet) {
+            PlayerMoveC2SPacket nuevo = null;
 
-        // Opcional: Reseteamos la distancia del cliente constantemente para que el HUD no marque caída
-        if (mc.player.fallDistance > 0) {
-            mc.player.fallDistance = 0;
+            if (packet instanceof PlayerMoveC2SPacket.Full p) {
+                nuevo = new PlayerMoveC2SPacket.Full(p.getX(mc.player.getX()), p.getY(mc.player.getY()), p.getZ(mc.player.getZ()), p.getYaw(mc.player.getYaw()), p.getPitch(mc.player.getPitch()), true);
+            } else if (packet instanceof PlayerMoveC2SPacket.PositionAndOnGround p) {
+                nuevo = new PlayerMoveC2SPacket.PositionAndOnGround(p.getX(mc.player.getX()), p.getY(mc.player.getY()), p.getZ(mc.player.getZ()), true);
+            } else if (packet instanceof PlayerMoveC2SPacket.LookAndOnGround p) {
+                nuevo = new PlayerMoveC2SPacket.LookAndOnGround(p.getYaw(mc.player.getYaw()), p.getPitch(mc.player.getPitch()), true);
+            } else if (packet instanceof PlayerMoveC2SPacket.OnGroundOnly p) {
+                nuevo = new PlayerMoveC2SPacket.OnGroundOnly(true);
+            }
+
+            if (nuevo != null) {
+                event.setCancelled(true);
+                mc.player.networkHandler.sendInternalPacket(nuevo);
+            }
         }
     }
 }
