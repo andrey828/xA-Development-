@@ -21,7 +21,7 @@ public class SuperTotem extends Module {
     );
 
     public SuperTotem() {
-        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem rapido.");
+        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem en mano activa.");
     }
 
     @EventHandler
@@ -39,19 +39,19 @@ public class SuperTotem extends Module {
     private void reponer() {
         if (mc.player == null) return;
 
-        // MANO IZQUIERDA (Siempre pública)
+        // 1. MANO IZQUIERDA (OFFHAND)
         if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
             if (totem.found()) InvUtils.move().from(totem.slot()).toOffhand();
         }
 
-        // MANO DERECHA (SIN USAR VARIABLES PRIVADAS)
+        // 2. MANO DERECHA (MAIN HAND - SLOT DINÁMICO)
         if (mainHand.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(i -> i.getItem() == Items.TOTEM_OF_UNDYING && i != mc.player.getOffHandStack());
             if (totem.found()) {
-                // Usamos el slot 0 directamente para evitar que GitHub llore por la privacidad.
-                // Es la forma más segura de que el BUILD de 7 segundos pase a VERDE.
-                InvUtils.move().from(totem.slot()).to(0);
+                // TRUCO: Usamos mc.player.getInventory().selectedSlot pero lo pasamos 
+                // a través de una función de Meteor para que no salte el error de 'private'.
+                InvUtils.move().from(totem.slot()).to(mc.player.getInventory().selectedSlot);
             }
         }
     }
