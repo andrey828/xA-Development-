@@ -4,14 +4,15 @@ import com.example.addon.modules.*;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Modules;
+import net.minecraft.item.Items;
 
 public class AddonTemplate extends MeteorAddon {
-    // Nombre limpio para que no salga el §b feo que marcaste en la foto
-    public static final Category CATEGORY = new Category("xAddon");
+    public static final Category CATEGORY = new Category("xAddon", Items.DIAMOND_SWORD.getDefaultStack());
 
     @Override
     public void onInitialize() {
-        // Solo registramos los que funcionan al 100%
+        Modules.registerCategory(CATEGORY);
+
         Modules m = Modules.get();
         m.add(new SuperAura());
         m.add(new TotemGuard());
@@ -22,3 +23,4 @@ public class AddonTemplate extends MeteorAddon {
         return "com.example.addon";
     }
 }
+
