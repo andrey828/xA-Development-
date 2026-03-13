@@ -12,6 +12,7 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
@@ -38,6 +39,7 @@ public class UltraMace extends Module {
     private final List<Setting<Integer>> extraHeights = new ArrayList<>();
     private boolean isWorking = false;
     private static Field onGroundField;
+    private static Field selectedSlotField;
 
     public UltraMace() {
         super(AddonTemplate.CATEGORY, "UltraMace", "Maximum Mace Power - No Limits.");
@@ -50,6 +52,8 @@ public class UltraMace extends Module {
                     break;
                 }
             }
+            selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
+            selectedSlotField.setAccessible(true);
         } catch (Exception ignored) {}
 
         for (int i = 3; i <= 32; i++) {
@@ -87,7 +91,13 @@ public class UltraMace extends Module {
                 event.cancel();
                 isWorking = true;
 
-                int oldSlot = mc.player.getInventory().selectedSlot;
+                int oldSlot = 0;
+                try {
+                    oldSlot = selectedSlotField.getInt(mc.player.getInventory());
+                } catch (Exception e) {
+                    oldSlot = mc.player.getInventory().selectedSlot; 
+                }
+
                 int maceSlot = -1;
                 for (int i = 0; i < 9; i++) {
                     if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) {
@@ -145,5 +155,4 @@ public class UltraMace extends Module {
         } catch (Exception ignored) {}
         mc.getNetworkHandler().sendPacket(p);
     }
-                }
-
+}
