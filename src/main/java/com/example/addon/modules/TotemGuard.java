@@ -17,7 +17,6 @@ public class TotemGuard extends Module {
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null) return;
 
-        // Resetea la distancia de caída en cada tick para que el cliente no crea que va a morir
         if (mc.player.fallDistance > 0) {
             mc.player.fallDistance = 0;
         }
@@ -25,9 +24,11 @@ public class TotemGuard extends Module {
 
     @EventHandler
     private void onSendPacket(PacketEvent.Send event) {
-        // Si el paquete es de movimiento, forzamos que el servidor crea que estamos tocando el suelo
         if (event.packet instanceof PlayerMoveC2SPacket packet) {
-            ((IPlayerMoveC2SPacket) packet).meteor$setOnGround(true);
+            IPlayerMoveC2SPacket move = (IPlayerMoveC2SPacket) packet;
+            
+            move.meteor$setOnGround(true);
+            move.meteor$setTag(1337);
         }
     }
 }
