@@ -25,17 +25,9 @@ public class TotemGuard extends Module {
     @EventHandler
     private void onSendPacket(PacketEvent.Send event) {
         if (event.packet instanceof PlayerMoveC2SPacket packet) {
-            ((IPlayerMoveC2SPacket) packet).meteor$setTag(1337);
-            
-            if (packet instanceof PlayerMoveC2SPacket.PositionAndOnGround p) {
-                p.onGround = true;
-            } else if (packet instanceof PlayerMoveC2SPacket.Full p) {
-                p.onGround = true;
-            } else if (packet instanceof PlayerMoveC2SPacket.LookAndOnGround p) {
-                p.onGround = true;
-            } else if (packet instanceof PlayerMoveC2SPacket.OnGroundOnly p) {
-                p.onGround = true;
-            }
+            IPlayerMoveC2SPacket accessor = (IPlayerMoveC2SPacket) packet;
+            accessor.meteor$setOnGround(true);
+            accessor.meteor$setTag(1337);
         }
     }
 }
