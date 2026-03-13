@@ -12,7 +12,6 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
@@ -52,7 +51,7 @@ public class UltraMace extends Module {
                     break;
                 }
             }
-            selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
+            selectedSlotField = mc.player.getInventory().getClass().getDeclaredField("selectedSlot");
             selectedSlotField.setAccessible(true);
         } catch (Exception ignored) {}
 
@@ -79,7 +78,7 @@ public class UltraMace extends Module {
             if (!String.valueOf(accessor.meteor$getType()).contains("ATTACK")) return;
 
             Entity entity = accessor.meteor$getEntity();
-            
+
             if (checkPlayers.get() && !(entity instanceof PlayerEntity)) {
                 ChatUtils.info("(Disable) No players Found");
                 return;
@@ -93,9 +92,9 @@ public class UltraMace extends Module {
 
                 int oldSlot = 0;
                 try {
-                    oldSlot = selectedSlotField.getInt(mc.player.getInventory());
+                    oldSlot = (int) selectedSlotField.get(mc.player.getInventory());
                 } catch (Exception e) {
-                    oldSlot = mc.player.getInventory().selectedSlot; 
+                    oldSlot = mc.player.getInventory().selectedSlot;
                 }
 
                 int maceSlot = -1;
@@ -140,11 +139,10 @@ public class UltraMace extends Module {
     }
 
     private void applyHit(Entity target, int height, double x, double y, double z) {
-        sendPos(x, y, z, true);
         sendPos(x, y + height, z, false);
+        sendPos(x, y, z, false); 
         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
         sendPos(x, y, z, true);
-        mc.player.fallDistance = 0;
     }
 
     private void sendPos(double x, double y, double z, boolean onGround) {
