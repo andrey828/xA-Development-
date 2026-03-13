@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="icon.png" width="200" height="200" alt="xA Addon Logo">
+  <img src="src/main/resources/icon.png" width="200" height="200" alt="xA Addon Logo" style="image-rendering: pixelated; image-rendering: crisp-edges;">
 </p>
 
 <h1 align="center">xA Addon</h1>
+
 
 <p align="center">
   <img src="https://img.shields.io/badge/Minecraft-1.21.x-green?style=for-the-badge" alt="Version">
