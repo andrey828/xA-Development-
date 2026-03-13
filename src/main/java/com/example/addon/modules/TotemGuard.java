@@ -26,7 +26,9 @@ public class TotemGuard extends Module {
     private void onSendPacket(PacketEvent.Send event) {
         if (event.packet instanceof PlayerMoveC2SPacket packet) {
             IPlayerMoveC2SPacket accessor = (IPlayerMoveC2SPacket) packet;
-            accessor.setOnGround(true);
+            
+            // Probamos con la variante Raw que es común en builds específicos de 1.21
+            accessor.meteor$setRawOnGround(true);
             accessor.meteor$setTag(1337);
         }
     }
