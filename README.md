@@ -14,7 +14,7 @@
 ---
 
 ## 🚀 Sobre xA Addon
-**xA Addon** es un complemento de alto rendimiento para **Meteor Client**, desarrollado por **abdrey828**. Este addon está enfocado en combate avanzado y utilidades optimizadas mediante manipulación de paquetes, garantizando una ventaja competitiva sin sacrificar la estabilidad del juego.
+**xA Addon** es un complemento de alto rendimiento para **Meteor Client**, desarrollado por **andndrey828 & simxnvoid__**. Este addon está enfocado en combate avanzado y utilidades optimizadas mediante manipulación de paquetes, garantizando una ventaja competitiva sin sacrificar la estabilidad del juego.
 
 ## 🛠️ Módulos Incluidos
 
