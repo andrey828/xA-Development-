@@ -26,7 +26,7 @@ public class TotemGuard extends Module {
     private void onSendPacket(PacketEvent.Send event) {
         if (event.packet instanceof PlayerMoveC2SPacket packet) {
             IPlayerMoveC2SPacket accessor = (IPlayerMoveC2SPacket) packet;
-            accessor.meteor$setOnGround(true);
+            accessor.setOnGround(true);
             accessor.meteor$setTag(1337);
         }
     }
