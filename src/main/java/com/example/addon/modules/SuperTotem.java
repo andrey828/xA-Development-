@@ -9,7 +9,7 @@ import net.minecraft.screen.slot.SlotActionType;
 
 public class SuperTotem extends Module {
     public SuperTotem() {
-        super(AddonTemplate.CATEGORY, "super-totem", "AutoTotem Pero Mejor.");
+        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem Pero Mejor.");
     }
 
     @EventHandler
