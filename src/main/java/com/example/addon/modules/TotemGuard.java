@@ -6,9 +6,9 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 
-public class Totemguarld extends Module {
-    public Totemguarld() {
-        super(AddonTemplate.CATEGORY, "Totemguarld", "NoFall Para Que No Te Rompas El Papoi");
+public class TotemGuard extends Module {
+    public TotemGuard() {
+        super(AddonTemplate.CATEGORY, "Totemguarld", "NoFall Mejorado Para Que No Te Rompas El Papoi");
     }
 
     @EventHandler
@@ -41,5 +41,5 @@ public class Totemguarld extends Module {
             }
         }
     }
-}
+                }
 
