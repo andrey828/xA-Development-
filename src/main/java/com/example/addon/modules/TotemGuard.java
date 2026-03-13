@@ -8,12 +8,14 @@ import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 
 public class TotemGuard extends Module {
     public TotemGuard() {
-        super(AddonTemplate.CATEGORY, "totem-guard", "NoFall directo que anula el daño de caída y mazas.");
+        super(AddonTemplate.CATEGORY, "TotemGuard", "Anula daño de maza y caida.");
     }
 
     @EventHandler
     private void onSendPacket(PacketEvent.Send event) {
-        if (mc.player == null || mc.getNetworkHandler() == null) return;
+        if (mc.player == null) return;
+
+        mc.player.fallDistance = 0;
 
         if (event.packet instanceof PlayerMoveC2SPacket packet && !event.isCancelled()) {
             if (packet.isOnGround()) return;
