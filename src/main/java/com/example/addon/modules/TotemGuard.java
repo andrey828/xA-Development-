@@ -6,14 +6,14 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 
-public class TotemGuard extends Module {
-    public TotemGuard() {
-        super(AddonTemplate.CATEGORY, "TotemGuard", "Anula daño de maza y caida.");
+public class Totemguarld extends Module {
+    public Totemguarld() {
+        super(AddonTemplate.CATEGORY, "Totemguarld", "NoFall Para Que No Te Rompas El Papoi");
     }
 
     @EventHandler
     private void onSendPacket(PacketEvent.Send event) {
-        if (mc.player == null) return;
+        if (mc.player == null || mc.getNetworkHandler() == null) return;
 
         mc.player.fallDistance = 0;
 
