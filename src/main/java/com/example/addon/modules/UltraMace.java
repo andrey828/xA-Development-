@@ -12,6 +12,7 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
@@ -51,7 +52,7 @@ public class UltraMace extends Module {
                     break;
                 }
             }
-            selectedSlotField = mc.player.getInventory().getClass().getDeclaredField("selectedSlot");
+            selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
             selectedSlotField.setAccessible(true);
         } catch (Exception ignored) {}
 
@@ -92,9 +93,9 @@ public class UltraMace extends Module {
 
                 int oldSlot = 0;
                 try {
-                    oldSlot = (int) selectedSlotField.get(mc.player.getInventory());
+                    oldSlot = selectedSlotField.getInt(mc.player.getInventory());
                 } catch (Exception e) {
-                    oldSlot = mc.player.getInventory().selectedSlot;
+                    oldSlot = 0;
                 }
 
                 int maceSlot = -1;
@@ -153,4 +154,5 @@ public class UltraMace extends Module {
         } catch (Exception ignored) {}
         mc.getNetworkHandler().sendPacket(p);
     }
-}
+                }
+                    
