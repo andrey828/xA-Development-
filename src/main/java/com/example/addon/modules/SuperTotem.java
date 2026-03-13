@@ -9,13 +9,12 @@ import net.minecraft.screen.slot.SlotActionType;
 
 public class SuperTotem extends Module {
     public SuperTotem() {
-        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem Pero Mejor.");
+        super(AddonTemplate.CATEGORY, "SuperTotem", "AutoTotem Mejorado.");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.interactionManager == null) return;
-
         if (mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
 
         int totemSlot = findTotem();
@@ -27,16 +26,10 @@ public class SuperTotem extends Module {
     }
 
     private int findTotem() {
-        for (int i = 9; i < 45; i++) {
-            if (mc.player.getInventory().getStack(i).getItem() == Items.TOTEM_OF_UNDYING) {
-                return i;
-            }
-        }
-        for (int i = 0; i < 9; i++) {
-            if (mc.player.getInventory().getStack(i).getItem() == Items.TOTEM_OF_UNDYING) {
-                return i;
-            }
+        for (int i = 0; i < 45; i++) {
+            if (mc.player.getInventory().getStack(i).getItem() == Items.TOTEM_OF_UNDYING) return i;
         }
         return -1;
     }
 }
+
