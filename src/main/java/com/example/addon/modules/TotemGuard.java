@@ -8,9 +8,23 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 
+import java.lang.reflect.Field;
+
 public class TotemGuard extends Module {
+    private static Field onGroundField;
+
     public TotemGuard() {
         super(AddonTemplate.CATEGORY, "Totemguarld", "Anula daño de maza y caida absoluta.");
+        
+        try {
+            for (Field field : PlayerMoveC2SPacket.class.getDeclaredFields()) {
+                if (field.getType() == boolean.class) {
+                    field.setAccessible(true);
+                    onGroundField = field;
+                    break;
+                }
+            }
+        } catch (Exception ignored) {}
     }
 
     @EventHandler
@@ -25,11 +39,13 @@ public class TotemGuard extends Module {
     @EventHandler
     private void onSendPacket(PacketEvent.Send event) {
         if (event.packet instanceof PlayerMoveC2SPacket packet) {
-            IPlayerMoveC2SPacket accessor = (IPlayerMoveC2SPacket) packet;
+            ((IPlayerMoveC2SPacket) packet).meteor$setTag(1337);
             
-            // Probamos con la variante Raw que es común en builds específicos de 1.21
-            accessor.meteor$setRawOnGround(true);
-            accessor.meteor$setTag(1337);
+            try {
+                if (onGroundField != null) {
+                    onGroundField.set(packet, true);
+                }
+            } catch (Exception ignored) {}
         }
     }
 }
