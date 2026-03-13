@@ -2,44 +2,32 @@ package com.example.addon.modules;
 
 import com.example.addon.AddonTemplate;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
+import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.mixininterface.IPlayerMoveC2SPacket;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 
 public class TotemGuard extends Module {
     public TotemGuard() {
-        super(AddonTemplate.CATEGORY, "Totemguarld", "NoFall Mejorado Para Que No Te Rompas El Papoi");
+        super(AddonTemplate.CATEGORY, "Totemguarld", "Anula daño de maza y caida absoluta.");
+    }
+
+    @EventHandler
+    private void onTick(TickEvent.Pre event) {
+        if (mc.player == null) return;
+
+        // Resetea la distancia de caída en cada tick para que el cliente no crea que va a morir
+        if (mc.player.fallDistance > 0) {
+            mc.player.fallDistance = 0;
+        }
     }
 
     @EventHandler
     private void onSendPacket(PacketEvent.Send event) {
-        if (mc.player == null || mc.getNetworkHandler() == null) return;
-
-        mc.player.fallDistance = 0;
-
-        if (event.packet instanceof PlayerMoveC2SPacket packet && !event.isCancelled()) {
-            if (packet.isOnGround()) return;
-
-            PlayerMoveC2SPacket nuevo = null;
-
-            if (packet instanceof PlayerMoveC2SPacket.Full p) {
-                nuevo = new PlayerMoveC2SPacket.Full(p.getX(0), p.getY(0), p.getZ(0), p.getYaw(0), p.getPitch(0), true, false);
-            } 
-            else if (packet instanceof PlayerMoveC2SPacket.PositionAndOnGround p) {
-                nuevo = new PlayerMoveC2SPacket.PositionAndOnGround(p.getX(0), p.getY(0), p.getZ(0), true, false);
-            } 
-            else if (packet instanceof PlayerMoveC2SPacket.LookAndOnGround p) {
-                nuevo = new PlayerMoveC2SPacket.LookAndOnGround(p.getYaw(0), p.getPitch(0), true, false);
-            } 
-            else if (packet instanceof PlayerMoveC2SPacket.OnGroundOnly) {
-                nuevo = new PlayerMoveC2SPacket.OnGroundOnly(true, false);
-            }
-
-            if (nuevo != null) {
-                event.cancel();
-                mc.getNetworkHandler().sendPacket(nuevo);
-            }
+        // Si el paquete es de movimiento, forzamos que el servidor crea que estamos tocando el suelo
+        if (event.packet instanceof PlayerMoveC2SPacket packet) {
+            ((IPlayerMoveC2SPacket) packet).meteor$setOnGround(true);
         }
     }
-                }
-
+}
