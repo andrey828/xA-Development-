@@ -1,3 +1,11 @@
+<p align="center">
+  <img src="logo.png" width="200" height="200" alt="xA Addon Logo">
+</p>
+
+<h1 align="center">xA Addon</h1>
+
+
+
 # Meteor Addon Template
 
 A template to allow easy usage of the Meteor Addon API.
