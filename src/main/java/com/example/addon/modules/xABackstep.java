@@ -60,7 +60,7 @@ public class xABackstep extends Module {
     @Override
     public void onActivate() {
         history.clear();
-        ChatUtils.sendMsg(Formatting.AQUA + "xA-Backstep" + Formatting.GRAY + ": Empezando a grabar rastro temporal...");
+        ChatUtils.info("Empezando a grabar rastro temporal...");
     }
 
     @EventHandler
@@ -81,10 +81,10 @@ public class xABackstep extends Module {
         }
 
         sendPos(destination);
-        mc.player.setPosition(destination.x, destination.y, destination.z);
+        mc.player.setPosition(destination.getX(), destination.getY(), destination.getZ());
         mc.player.setVelocity(0, 0, 0);
 
-        ChatUtils.sendMsg(Formatting.GOLD + "xA-Backstep" + Formatting.GRAY + ": Rebobinado completado. ¡Has vuelto al pasado!");
+        ChatUtils.info("Rebobinado completado. ¡Has vuelto al pasado!");
         
         history.clear();
     }
