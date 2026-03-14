@@ -17,6 +17,7 @@ public class AddonTemplate extends MeteorAddon {
         m.add(new SuperTotem());
         m.add(new TotemGuard());
         m.add(new UltraMace());
+        m.add(new FareWell());
     }
 
     @Override
