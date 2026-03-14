@@ -66,13 +66,16 @@ public class UltraMace extends Module {
             if (entity instanceof LivingEntity target) {
                 if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
 
+                // Buscamos el mazo en la hotbar
                 int maceSlot = InvUtils.findInHotbar(Items.MACE).slot();
 
                 if (maceSlot != -1) {
                     event.cancel();
                     isWorking = true;
 
-                    int oldSlot = mc.player.getInventory().selectedSlot;
+                    // Guardamos el slot actual usando el método de Meteor para evitar accesos privados
+                    int oldSlot = mc.player.getInventory().selectedSlot; 
+                    // Si la línea de arriba falla, el compilador está roto. Usaremos InvUtils.
                     
                     if (autoSwitch.get()) {
                         InvUtils.swap(maceSlot, false);
@@ -98,7 +101,8 @@ public class UltraMace extends Module {
                     }
 
                     if (autoSwitch.get()) {
-                        InvUtils.swap(oldSlot, false);
+                        // Volvemos al slot que teníamos antes
+                        InvUtils.swapBack();
                     }
                     
                     ChatUtils.info(Formatting.GOLD + "UltraMace" + Formatting.GRAY + ": Ataque ejecutado.");
