@@ -103,7 +103,7 @@ public class UltraMace extends Module {
 
                     if (autoSwitch.get()) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
                     
-                    ChatUtils.info(Formatting.GOLD + "UltraMace" + Formatting.GRAY + ": Ataque ejecutado con éxito.");
+                    ChatUtils.info(Formatting.GOLD + "UltraMace" + Formatting.GRAY + ": Ataque ejecutado.");
                     isWorking = false;
                 }
             }
