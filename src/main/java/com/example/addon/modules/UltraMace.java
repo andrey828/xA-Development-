@@ -7,6 +7,8 @@ import meteordevelopment.meteorclient.mixininterface.IPlayerMoveC2SPacket;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.player.ChatUtils;
+import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -16,7 +18,6 @@ import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.util.Formatting;
-import meteordevelopment.meteorclient.utils.player.ChatUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +44,7 @@ public class UltraMace extends Module {
                 .name("Hit " + i)
                 .defaultValue(100 + (i * 50))
                 .range(1, 30000)
-                .visible(() -> extraHitsAmount.get() >= i)
+                .visible(() -> extraHitsAmount.get() >= (extraHeights.indexOf(this) + 1)) 
                 .build()
             ));
         }
@@ -67,20 +68,17 @@ public class UltraMace extends Module {
             if (entity instanceof LivingEntity target) {
                 if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
 
-                int maceSlot = -1;
-                for (int i = 0; i < 9; i++) {
-                    if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) {
-                        maceSlot = i;
-                        break;
-                    }
-                }
+                int maceSlot = InvUtils.findInHotbar(Items.MACE).slot();
 
                 if (maceSlot != -1) {
                     event.cancel();
                     isWorking = true;
 
                     int oldSlot = mc.player.getInventory().selectedSlot;
-                    if (autoSwitch.get()) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
+                    
+                    if (autoSwitch.get()) {
+                        InvUtils.swap(maceSlot, false);
+                    }
 
                     double px = mc.player.getX();
                     double py = mc.player.getY();
@@ -101,7 +99,9 @@ public class UltraMace extends Module {
                         }
                     }
 
-                    if (autoSwitch.get()) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
+                    if (autoSwitch.get()) {
+                        InvUtils.swap(oldSlot, false);
+                    }
                     
                     ChatUtils.info(Formatting.GOLD + "UltraMace" + Formatting.GRAY + ": Ataque ejecutado.");
                     isWorking = false;
