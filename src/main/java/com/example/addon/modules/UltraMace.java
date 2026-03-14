@@ -66,17 +66,14 @@ public class UltraMace extends Module {
             if (entity instanceof LivingEntity target) {
                 if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
 
-                // Buscamos el mazo en la hotbar
+                // Buscamos el mazo sin tocar el inventario directamente
                 int maceSlot = InvUtils.findInHotbar(Items.MACE).slot();
 
                 if (maceSlot != -1) {
                     event.cancel();
                     isWorking = true;
 
-                    // Guardamos el slot actual usando el método de Meteor para evitar accesos privados
-                    int oldSlot = mc.player.getInventory().selectedSlot; 
-                    // Si la línea de arriba falla, el compilador está roto. Usaremos InvUtils.
-                    
+                    // Cambiamos al mazo. InvUtils gestiona internamente el estado.
                     if (autoSwitch.get()) {
                         InvUtils.swap(maceSlot, false);
                     }
@@ -100,8 +97,8 @@ public class UltraMace extends Module {
                         }
                     }
 
+                    // Volvemos al ítem anterior automáticamente
                     if (autoSwitch.get()) {
-                        // Volvemos al slot que teníamos antes
                         InvUtils.swapBack();
                     }
                     
