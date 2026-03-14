@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "xa-addon", 
-  "version": "7.0",
+  "version": "0.8.0",
   "name": "xAddon",
   "description": "Addon para Meteor Client 1.21.x",
   "authors": [
@@ -23,7 +23,7 @@
   ],
   "depends": {
     "fabricloader": ">=0.15.0",
-    "minecraft": "~1.21",
+    "minecraft": "~1.21.3",
     "java": ">=21",
     "meteor-client": "*"
   }
