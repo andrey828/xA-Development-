@@ -16,7 +16,6 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.util.Formatting;
 
 import java.util.ArrayList;
@@ -73,11 +72,10 @@ public class UltraMace extends Module {
                     event.cancel();
                     isWorking = true;
 
-                    // CAMBIO CLAVE: Usamos el slot desde mc.player directamente
                     int oldSlot = mc.player.getInventory().selectedSlot;
                     
                     if (autoSwitch.get()) {
-                        mc.player.getInventory().selectedSlot = maceSlot;
+                        InvUtils.swap(maceSlot, false);
                     }
 
                     double px = mc.player.getX();
@@ -100,7 +98,7 @@ public class UltraMace extends Module {
                     }
 
                     if (autoSwitch.get()) {
-                        mc.player.getInventory().selectedSlot = oldSlot;
+                        InvUtils.swap(oldSlot, false);
                     }
                     
                     ChatUtils.info(Formatting.GOLD + "UltraMace" + Formatting.GRAY + ": Ataque ejecutado.");
