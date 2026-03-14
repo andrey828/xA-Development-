@@ -12,7 +12,6 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
-import net.minecraft.util.math.Vec3d;
 
 import java.util.Comparator;
 import java.util.List;
@@ -70,14 +69,16 @@ public class SuperAura extends Module {
         if (mc.player.getAttackCooldownProgress(0.5f) < 0.9f) return;
 
         if (tpBypass.get() && mc.player.distanceTo(entity) > 5) {
-            Vec3d origin = mc.player.getPos();
+            double ox = mc.player.getX();
+            double oy = mc.player.getY();
+            double oz = mc.player.getZ();
             
             mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(entity.getX(), entity.getY(), entity.getZ(), false, mc.player.horizontalCollision));
             
             mc.interactionManager.attackEntity(mc.player, entity);
             mc.player.swingHand(Hand.MAIN_HAND);
             
-            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(origin.x, origin.y, origin.z, true, mc.player.horizontalCollision));
+            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(ox, oy, oz, true, mc.player.horizontalCollision));
         } else {
             mc.interactionManager.attackEntity(mc.player, entity);
             mc.player.swingHand(Hand.MAIN_HAND);
