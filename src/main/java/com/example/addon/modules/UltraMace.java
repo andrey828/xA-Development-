@@ -44,7 +44,6 @@ public class UltraMace extends Module {
                 .name("Hit " + i)
                 .defaultValue(100 + (i * 50))
                 .range(1, 30000)
-                .visible(() -> extraHitsAmount.get() >= (extraHeights.indexOf(this) + 1)) 
                 .build()
             ));
         }
@@ -52,7 +51,7 @@ public class UltraMace extends Module {
 
     @Override
     public void onActivate() {
-        ChatUtils.info("UltraMace" + Formatting.GRAY + ": Sistema de daño crítico cargado.");
+        ChatUtils.info("UltraMace" + Formatting.GRAY + ": Sistema cargado.");
     }
 
     @EventHandler
@@ -74,10 +73,11 @@ public class UltraMace extends Module {
                     event.cancel();
                     isWorking = true;
 
+                    // CAMBIO CLAVE: Usamos el slot desde mc.player directamente
                     int oldSlot = mc.player.getInventory().selectedSlot;
                     
                     if (autoSwitch.get()) {
-                        InvUtils.swap(maceSlot, false);
+                        mc.player.getInventory().selectedSlot = maceSlot;
                     }
 
                     double px = mc.player.getX();
@@ -100,7 +100,7 @@ public class UltraMace extends Module {
                     }
 
                     if (autoSwitch.get()) {
-                        InvUtils.swap(oldSlot, false);
+                        mc.player.getInventory().selectedSlot = oldSlot;
                     }
                     
                     ChatUtils.info(Formatting.GOLD + "UltraMace" + Formatting.GRAY + ": Ataque ejecutado.");
