@@ -29,11 +29,7 @@ public class UltraMace extends Module {
     private final Setting<Integer> macePower = sgGeneral.add(new IntSetting.Builder().name("Mace Power").defaultValue(113).range(1, Integer.MAX_VALUE).sliderRange(1, 20000).build());
     private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder().name("Auto Switch").defaultValue(true).build());
     private final Setting<Boolean> checkPlayers = sgGeneral.add(new BoolSetting.Builder().name("Check Players").defaultValue(true).build());
-    private final Setting<Boolean> doTotemFail = sgGeneral.add(new BoolSetting.Builder().name("Do TotemFail").defaultValue(true).build());
-    private final Setting<Integer> hit1 = sgGeneral.add(new IntSetting.Builder().name("Hit 1").defaultValue(30).range(1, Integer.MAX_VALUE).sliderRange(1, 20000).build());
-    private final Setting<Integer> hit2 = sgGeneral.add(new IntSetting.Builder().name("Hit 2").defaultValue(60).range(1, Integer.MAX_VALUE).sliderRange(1, 20000).build());
     private final Setting<Integer> extraHitsAmount = sgGeneral.add(new IntSetting.Builder().name("Extra Hits Amount").defaultValue(10).range(0, 30).build());
-    private final Setting<Integer> noGroundPackets = sgGeneral.add(new IntSetting.Builder().name("TotemFail Packets").defaultValue(20).range(0, 5000).build());
     private final Setting<Integer> hitAmount = sgGeneral.add(new IntSetting.Builder().name("Global Multiplier").defaultValue(1).range(1, 1000).build());
 
     private final List<Setting<Integer>> extraHeights = new ArrayList<>();
@@ -79,11 +75,7 @@ public class UltraMace extends Module {
             if (!String.valueOf(accessor.meteor$getType()).contains("ATTACK")) return;
 
             Entity entity = accessor.meteor$getEntity();
-
-            if (checkPlayers.get() && !(entity instanceof PlayerEntity)) {
-                ChatUtils.info("(Disable) No players Found");
-                return;
-            }
+            if (checkPlayers.get() && !(entity instanceof PlayerEntity)) return;
 
             if (entity instanceof LivingEntity target) {
                 if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
@@ -92,11 +84,7 @@ public class UltraMace extends Module {
                 isWorking = true;
 
                 int oldSlot = 0;
-                try {
-                    oldSlot = selectedSlotField.getInt(mc.player.getInventory());
-                } catch (Exception e) {
-                    oldSlot = 0;
-                }
+                try { oldSlot = selectedSlotField.getInt(mc.player.getInventory()); } catch (Exception e) { oldSlot = 0; }
 
                 int maceSlot = -1;
                 for (int i = 0; i < 9; i++) {
@@ -114,20 +102,10 @@ public class UltraMace extends Module {
                     double pz = mc.player.getZ();
 
                     for (int a = 0; a < hitAmount.get(); a++) {
+                        // Cambiado: Ahora enviamos FALSE en onGround SIEMPRE
                         applyHit(target, macePower.get(), px, py, pz);
-                        applyHit(target, hit1.get(), px, py, pz);
-                        applyHit(target, hit2.get(), px, py, pz);
-
                         for (int i = 0; i < extraHitsAmount.get(); i++) {
                             applyHit(target, extraHeights.get(i).get(), px, py, pz);
-                        }
-
-                        if (doTotemFail.get()) {
-                            for (int i = 0; i < noGroundPackets.get(); i++) {
-                                sendPos(px, py + (i * 0.0001), pz, false);
-                                mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
-                                sendPos(px, py, pz, true);
-                            }
                         }
                     }
 
@@ -140,19 +118,21 @@ public class UltraMace extends Module {
     }
 
     private void applyHit(Entity target, int height, double x, double y, double z) {
+        // Mantenemos al jugador en el aire (onGround = false) durante todo el proceso
+        sendPos(x, y + 0.05, z, false); 
         sendPos(x, y + height, z, false);
-        sendPos(x, y, z, false); 
         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
-        sendPos(x, y, z, true);
+        sendPos(x, y + 0.05, z, false);
+        
+        mc.player.fallDistance = 0; // Reset local para evitar el efecto visual de daño
     }
 
     private void sendPos(double x, double y, double z, boolean onGround) {
         PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, onGround, mc.player.horizontalCollision);
         ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
         try {
-            if (onGroundField != null) onGroundField.set(p, onGround);
+            if (onGroundField != null) onGroundField.set(p, false); // Forzamos FALSE incluso aquí
         } catch (Exception ignored) {}
         mc.getNetworkHandler().sendPacket(p);
     }
-                }
-                    
+}
