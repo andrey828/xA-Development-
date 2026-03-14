@@ -14,7 +14,6 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.network.packet.c2s.play.TeleportConfirmC2SPacket;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.Formatting;
 import java.util.LinkedList;
 
 public class xABackstep extends Module {
@@ -92,7 +91,10 @@ public class xABackstep extends Module {
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null) return;
-        history.addLast(mc.player.getPos());
+        
+        Vec3d currentPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        history.addLast(currentPos);
+        
         while (history.size() > seconds.get() * 20) history.removeFirst();
     }
 
@@ -100,13 +102,15 @@ public class xABackstep extends Module {
     private void onRender(Render3DEvent event) {
         if (history.size() < 2) return;
         for (int i = 0; i < history.size() - 1; i++) {
-            event.renderer.line(history.get(i).x, history.get(i).y + 0.1, history.get(i).z,
-                                history.get(i + 1).x, history.get(i + 1).y + 0.1, history.get(i + 1).z, lineColor.get());
+            Vec3d p1 = history.get(i);
+            Vec3d p2 = history.get(i + 1);
+            event.renderer.line(p1.getX(), p1.getY() + 0.1, p1.getZ(),
+                                p2.getX(), p2.getY() + 0.1, p2.getZ(), lineColor.get());
         }
     }
 
     private void sendPos(Vec3d pos) {
-        PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(pos.x, pos.y, pos.z, true, false);
+        PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(pos.getX(), pos.getY(), pos.getZ(), true, false);
         ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
         mc.getNetworkHandler().sendPacket(p);
     }
