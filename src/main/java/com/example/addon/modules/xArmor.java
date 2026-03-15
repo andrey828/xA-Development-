@@ -9,7 +9,6 @@ import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.enchantment.Enchantments;
 import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.item.ArmorItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.registry.tag.ItemTags;
@@ -28,7 +27,7 @@ public class xArmor extends Module {
     private int timer;
 
     public xArmor() {
-        super(AddonTemplate.CATEGORY, "xArmor", "Equipa la armadura automáticamente (optimizada).");
+        super(AddonTemplate.CATEGORY, "xArmor", "Defensa automática optimizada sin dependencias conflictivas.");
     }
 
     @Override
@@ -44,6 +43,7 @@ public class xArmor extends Module {
             return;
         }
 
+        // Procesamos los slots de armadura
         for (EquipmentSlot slot : List.of(EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET)) {
             if (processSlot(slot)) {
                 timer = delay.get();
@@ -93,15 +93,20 @@ public class xArmor extends Module {
     private float getScore(ItemStack stack) {
         if (stack.isEmpty()) return 0;
         
-        // Puntuación simple basada en materiales si no podemos castear a ArmorItem
         float score = 0;
         String name = stack.getItem().toString().toLowerCase();
         
+        // Material Score
         if (name.contains("netherite")) score += 20;
         else if (name.contains("diamond")) score += 15;
         else if (name.contains("iron")) score += 10;
+        else if (name.contains("chainmail")) score += 5;
+        else if (name.contains("gold")) score += 2;
         
-        // Uso de Utils de Meteor para encantamientos (más seguro que EnchantmentHelper directo)
+        // Elytra tiene prioridad si no hay pechera mejor
+        if (stack.getItem() == Items.ELYTRA) score = 10;
+
+        // Enchantment Score usando Utils de Meteor (compatible con 1.21+)
         score += Utils.getEnchantmentLevel(stack, Enchantments.PROTECTION) * 1.5f;
         score += Utils.getEnchantmentLevel(stack, Enchantments.MENDING) * 1.0f;
         score += Utils.getEnchantmentLevel(stack, Enchantments.UNBREAKING) * 0.2f;
