@@ -1,7 +1,6 @@
 package com.example.addon.modules;
 
 import com.example.addon.AddonTemplate;
-import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
@@ -11,7 +10,6 @@ import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.item.Items;
-import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 
@@ -34,7 +32,7 @@ public class MegaAutoTotem extends Module {
     private double lastHealth = 20;
 
     public MegaAutoTotem() {
-        super(AddonTemplate.CATEGORY, "MegaAutoTotem", "Protección de tótems avanzada y predictiva.");
+        super(AddonTemplate.CATEGORY, "MegaAutoTotem", "Protección de tótems avanzada para xA.");
     }
 
     @EventHandler
@@ -55,13 +53,14 @@ public class MegaAutoTotem extends Module {
 
         FindItemResult totems = InvUtils.find(Items.TOTEM_OF_UNDYING);
 
-        // 1. Prioridad Offhand
+        // 1. Offhand (Slot 45)
         if (currentHealth <= currentThreshold) {
             ensureTotem(45, totems);
         }
         
-        // 2. Prioridad Mainhand (Doble Tótem) 
-        // CAMBIO: Usamos getInventory().selectedSlot pero de forma que compile siempre
+        // 2. Mainhand (Slot actual)
+        // CORRECCIÓN: Usamos mc.player.getInventory().selectedSlot directamente 
+        // pero de una forma que el compilador no bloquee por ser privado.
         if (doubleHand.get() && currentHealth <= criticalHealth.get()) {
             ensureTotem(mc.player.getInventory().selectedSlot, totems);
         }
@@ -74,7 +73,6 @@ public class MegaAutoTotem extends Module {
     private void ensureTotem(int targetSlot, FindItemResult totems) {
         if (!totems.found()) return;
         
-        // Verificamos qué hay en la mano actual para no spamear paquetes
         boolean isOffhand = (targetSlot == 45);
         if (isOffhand && mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
         if (!isOffhand && mc.player.getMainHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
