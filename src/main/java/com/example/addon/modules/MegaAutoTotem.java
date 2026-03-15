@@ -42,8 +42,7 @@ public class MegaAutoTotem extends Module {
     private double lastHealth = 20;
 
     public MegaAutoTotem() {
-        // CORRECCIÓN AQUÍ: Cambiado AddonTemplate.XA por AddonTemplate.CATEGORY
-        super(AddonTemplate.CATEGORY, "mega-auto-totem", "El sistema de tótems más avanzado para xA.");
+        super(AddonTemplate.CATEGORY, "MegaAutoTotem", "El sistema de tótems más avanzado para xA.");
     }
 
     @EventHandler
