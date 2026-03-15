@@ -5,13 +5,14 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
+import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.enchantment.Enchantments;
 import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.item.ArmorItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.item.ArmorItem;
+import net.minecraft.registry.tag.ItemTags;
 import net.minecraft.util.Formatting;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 
@@ -27,13 +28,13 @@ public class xArmor extends Module {
     private int timer;
 
     public xArmor() {
-        super(AddonTemplate.CATEGORY, "xArmor", "Equipa armadura automáticamente (Optimizado).");
+        super(AddonTemplate.CATEGORY, "xArmor", "Equipa la armadura automáticamente (optimizada).");
     }
 
     @Override
     public void onActivate() {
         timer = 0;
-        ChatUtils.info("xArmor" + Formatting.GRAY + ": Defensa optimizada lista.");
+        ChatUtils.info("xArmor" + Formatting.GRAY + ": Sistema iniciado.");
     }
 
     @EventHandler
@@ -59,18 +60,16 @@ public class xArmor extends Module {
         }
 
         int bestSlot = -1;
-        float bestScore = getScore(current, slot);
+        float bestScore = getScore(current);
 
-        for (int i = 0; i < 9; i++) { // Escaneamos Hotbar
-            if (checkInventorySlot(i, slot, bestScore)) {
-                bestScore = getScore(mc.player.getInventory().getStack(i), slot);
-                bestSlot = i;
-            }
-        }
-        
-        for (int i = 9; i < 36; i++) { // Escaneamos Inventario
-            if (checkInventorySlot(i, slot, bestScore)) {
-                bestScore = getScore(mc.player.getInventory().getStack(i), slot);
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = mc.player.getInventory().getStack(i);
+            if (stack.isEmpty() || !isCorrectSlot(stack, slot)) continue;
+            if (antiBreak.get() && isLowDurability(stack)) continue;
+
+            float score = getScore(stack);
+            if (score > bestScore) {
+                bestScore = score;
                 bestSlot = i;
             }
         }
@@ -83,28 +82,29 @@ public class xArmor extends Module {
         return false;
     }
 
-    private boolean checkInventorySlot(int i, EquipmentSlot slot, float bestScore) {
-        ItemStack stack = mc.player.getInventory().getStack(i);
-        if (stack.isEmpty() || !(stack.getItem() instanceof ArmorItem)) return false;
-        ArmorItem item = (ArmorItem) stack.getItem();
-        if (item.getSlotType() != slot) return false;
-        if (antiBreak.get() && isLowDurability(stack)) return false;
-        
-        return getScore(stack, slot) > bestScore;
+    private boolean isCorrectSlot(ItemStack stack, EquipmentSlot slot) {
+        if (slot == EquipmentSlot.HEAD) return stack.isIn(ItemTags.HEAD_ARMOR);
+        if (slot == EquipmentSlot.CHEST) return stack.isIn(ItemTags.CHEST_ARMOR) || stack.getItem() == Items.ELYTRA;
+        if (slot == EquipmentSlot.LEGS) return stack.isIn(ItemTags.LEG_ARMOR);
+        if (slot == EquipmentSlot.FEET) return stack.isIn(ItemTags.FOOT_ARMOR);
+        return false;
     }
 
-    private float getScore(ItemStack stack, EquipmentSlot slot) {
-        if (stack.isEmpty() || stack.getItem() == Items.ELYTRA) return 0;
-        if (!(stack.getItem() instanceof ArmorItem)) return 0;
-
-        ArmorItem item = (ArmorItem) stack.getItem();
-        float score = item.getProtection();
-        score += item.getToughness() * 0.5f;
-
-        // Usamos EnchantmentHelper para máxima compatibilidad entre versiones de Meteor/Minecraft
-        score += EnchantmentHelper.getLevel(mc.world.getRegistryManager().getWrapperOrThrow(net.minecraft.registry.RegistryKeys.ENCHANTMENT).getOrThrow(Enchantments.PROTECTION), stack) * 1.5f;
-        score += EnchantmentHelper.getLevel(mc.world.getRegistryManager().getWrapperOrThrow(net.minecraft.registry.RegistryKeys.ENCHANTMENT).getOrThrow(Enchantments.MENDING), stack) * 1.0f;
-        score += EnchantmentHelper.getLevel(mc.world.getRegistryManager().getWrapperOrThrow(net.minecraft.registry.RegistryKeys.ENCHANTMENT).getOrThrow(Enchantments.UNBREAKING), stack) * 0.2f;
+    private float getScore(ItemStack stack) {
+        if (stack.isEmpty()) return 0;
+        
+        // Puntuación simple basada en materiales si no podemos castear a ArmorItem
+        float score = 0;
+        String name = stack.getItem().toString().toLowerCase();
+        
+        if (name.contains("netherite")) score += 20;
+        else if (name.contains("diamond")) score += 15;
+        else if (name.contains("iron")) score += 10;
+        
+        // Uso de Utils de Meteor para encantamientos (más seguro que EnchantmentHelper directo)
+        score += Utils.getEnchantmentLevel(stack, Enchantments.PROTECTION) * 1.5f;
+        score += Utils.getEnchantmentLevel(stack, Enchantments.MENDING) * 1.0f;
+        score += Utils.getEnchantmentLevel(stack, Enchantments.UNBREAKING) * 0.2f;
 
         return score;
     }
