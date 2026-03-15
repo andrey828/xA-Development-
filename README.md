@@ -6,7 +6,7 @@
 
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Minecraft-1.21.x-green?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/Minecraft-1.21.4-1.21.11-green?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/Meteor-Client-yellow?style=for-the-badge" alt="Meteor">
   <img src="https://img.shields.io/badge/Status-Stable-blue?style=for-the-badge" alt="Status">
 </p>
