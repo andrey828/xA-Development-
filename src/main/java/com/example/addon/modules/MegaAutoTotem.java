@@ -53,14 +53,13 @@ public class MegaAutoTotem extends Module {
 
         FindItemResult totems = InvUtils.find(Items.TOTEM_OF_UNDYING);
 
-        // 1. Offhand (Slot 45)
+        // 1. Offhand
         if (currentHealth <= currentThreshold) {
             ensureTotem(45, totems);
         }
         
-        // 2. Mainhand (Slot actual)
-        // CORRECCIÓN: Usamos mc.player.getInventory().selectedSlot directamente 
-        // pero de una forma que el compilador no bloquee por ser privado.
+        // 2. Mainhand (Doble Tótem)
+        // Usamos el índice de la hotbar actual directamente desde el inventario (campo público)
         if (doubleHand.get() && currentHealth <= criticalHealth.get()) {
             ensureTotem(mc.player.getInventory().selectedSlot, totems);
         }
