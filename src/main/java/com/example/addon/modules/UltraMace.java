@@ -7,6 +7,8 @@ import meteordevelopment.meteorclient.mixininterface.IPlayerMoveC2SPacket;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.player.InvUtils;
+import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -34,7 +36,7 @@ public class UltraMace extends Module {
     private boolean isWorking = false;
 
     public UltraMace() {
-        super(AddonTemplate.CATEGORY, "UltraMace", "Máximo daño de maza sin morir por caída.");
+        super(AddonTemplate.CATEGORY, "UltraMace", "Máximo daño de Maza ");
 
         for (int i = 1; i <= 30; i++) {
             int finalI = i;
@@ -56,33 +58,27 @@ public class UltraMace extends Module {
         if (event.packet instanceof PlayerInteractEntityC2SPacket packet) {
             IPlayerInteractEntityC2SPacket accessor = (IPlayerInteractEntityC2SPacket) packet;
             
-            // Bypass para InteractType privado
             if (!String.valueOf(accessor.meteor$getType()).contains("ATTACK")) return;
 
             Entity entity = accessor.meteor$getEntity();
             if (entity instanceof LivingEntity target) {
                 if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
 
-                int maceSlot = -1;
-                for (int i = 0; i < 9; i++) {
-                    if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) {
-                        maceSlot = i;
-                        break;
-                    }
-                }
+                // Usamos InvUtils para encontrar la maza en la hotbar (0-8)
+                FindItemResult mace = InvUtils.findInHotbar(Items.MACE);
 
-                if (maceSlot == -1 && !mc.player.getMainHandStack().isOf(Items.MACE)) return;
+                // Si no la tenemos en la mano ni en la hotbar, no hacemos nada
+                if (!mace.isMainHand() && !mace.found()) return;
 
                 event.cancel();
                 isWorking = true;
 
-                // FIX DEFINITIVO: Usar el método oficial para obtener el slot actual
-                int oldSlot = mc.player.getInventory().selectedSlot; 
-                // Si Loom sigue fallando, la variable mc.player.getInventory().selectedSlot 
-                // será remapeada correctamente al subirla si usamos el objeto directamente.
-                
-                if (autoSwitch.get() && maceSlot != -1 && maceSlot != oldSlot) {
-                    mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
+                // Guardamos el slot actual de forma segura
+                int oldSlot = mc.player.getInventory().selectedSlot;
+
+                // Cambio automático de slot si es necesario
+                if (autoSwitch.get() && mace.found() && !mace.isMainHand()) {
+                    mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(mace.slot()));
                 }
 
                 double px = mc.player.getX();
@@ -104,7 +100,8 @@ public class UltraMace extends Module {
                     }
                 }
 
-                if (autoSwitch.get() && maceSlot != -1 && maceSlot != oldSlot) {
+                // Volvemos al slot original
+                if (autoSwitch.get() && mace.found() && !mace.isMainHand()) {
                     mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
                 }
 
