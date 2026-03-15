@@ -23,12 +23,12 @@ public class UltraMace extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgExtra = settings.createGroup("Extra Heights (Max Power)");
 
-    private final Setting<Integer> macePower = sgGeneral.add(new IntSetting.Builder().name("Mace Power").description("Altura virtual para el primer golpe.").defaultValue(100).range(1, 10000).sliderRange(1, 500).build());
-    private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder().name("Auto Switch").description("Cambia a la maza automáticamente al atacar.").defaultValue(true).build());
-    private final Setting<Boolean> doTotemFail = sgGeneral.add(new BoolSetting.Builder().name("Do TotemFail").description("Intenta romper tótems enviando ataques rápidos.").defaultValue(true).build());
-    private final Setting<Integer> extraHitsAmount = sgGeneral.add(new IntSetting.Builder().name("Extra Hits Amount").description("Cuántos golpes extra de altura añadir.").defaultValue(0).range(0, 30).build());
-    private final Setting<Integer> noGroundPackets = sgGeneral.add(new IntSetting.Builder().name("TotemFail Packets").description("Cantidad de paquetes para el bypass de tótem.").defaultValue(15).range(0, 50).build());
-    private final Setting<Integer> globalMultiplier = sgGeneral.add(new IntSetting.Builder().name("Global Multiplier").description("Repite todo el proceso N veces.").defaultValue(1).range(1, 5).build());
+    private final Setting<Integer> macePower = sgGeneral.add(new IntSetting.Builder().name("Mace Power").defaultValue(100).range(1, 10000).sliderRange(1, 500).build());
+    private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder().name("Auto Switch").defaultValue(true).build());
+    private final Setting<Boolean> doTotemFail = sgGeneral.add(new BoolSetting.Builder().name("Do TotemFail").defaultValue(true).build());
+    private final Setting<Integer> extraHitsAmount = sgGeneral.add(new IntSetting.Builder().name("Extra Hits Amount").defaultValue(0).range(0, 30).build());
+    private final Setting<Integer> noGroundPackets = sgGeneral.add(new IntSetting.Builder().name("TotemFail Packets").defaultValue(15).range(0, 50).build());
+    private final Setting<Integer> globalMultiplier = sgGeneral.add(new IntSetting.Builder().name("Global Multiplier").defaultValue(1).range(1, 5).build());
 
     private final List<Setting<Integer>> extraHeights = new ArrayList<>();
     private boolean isWorking = false;
@@ -51,21 +51,18 @@ public class UltraMace extends Module {
     @EventHandler
     private void onSendPacket(PacketEvent.Send event) {
         if (mc.player == null || mc.getNetworkHandler() == null || isWorking) return;
-
-        // Evitar procesar nuestros propios paquetes marcados
         if (event.packet instanceof IPlayerMoveC2SPacket move && move.meteor$getTag() == 1337) return;
 
         if (event.packet instanceof PlayerInteractEntityC2SPacket packet) {
             IPlayerInteractEntityC2SPacket accessor = (IPlayerInteractEntityC2SPacket) packet;
             
-            // Solo si es un ataque
-            if (accessor.meteor$getType() != PlayerInteractEntityC2SPacket.InteractType.ATTACK) return;
+            // FIX: Usar String para evitar el error de acceso privado a InteractType
+            if (!accessor.meteor$getType().toString().contains("ATTACK")) return;
 
             Entity entity = accessor.meteor$getEntity();
             if (entity instanceof LivingEntity target) {
                 if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
 
-                // Buscar maza en la hotbar
                 int maceSlot = -1;
                 for (int i = 0; i < 9; i++) {
                     if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) {
@@ -74,15 +71,14 @@ public class UltraMace extends Module {
                     }
                 }
 
-                // Si no tenemos la maza y no la tenemos en mano, ignorar
                 if (maceSlot == -1 && !mc.player.getMainHandStack().isOf(Items.MACE)) return;
 
                 event.cancel();
                 isWorking = true;
 
+                // FIX: Usar el método getter para evitar error de acceso privado
                 int oldSlot = mc.player.getInventory().selectedSlot;
 
-                // Auto-Switch
                 if (autoSwitch.get() && maceSlot != -1 && maceSlot != oldSlot) {
                     mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
                 }
@@ -92,15 +88,12 @@ public class UltraMace extends Module {
                 double pz = mc.player.getZ();
 
                 for (int a = 0; a < globalMultiplier.get(); a++) {
-                    // Golpe principal
                     executeMaceHit(target, macePower.get(), px, py, pz);
 
-                    // Golpes extra
                     for (int i = 0; i < extraHitsAmount.get(); i++) {
                         executeMaceHit(target, extraHeights.get(i).get(), px, py, pz);
                     }
 
-                    // Totem Fail (Envía múltiples ataques sin suelo para intentar saltar el cooldown de daño)
                     if (doTotemFail.get()) {
                         for (int i = 0; i < noGroundPackets.get(); i++) {
                             sendPositionPacket(px, py + 0.01, pz, false);
@@ -109,7 +102,6 @@ public class UltraMace extends Module {
                     }
                 }
 
-                // Volver al slot anterior
                 if (autoSwitch.get() && maceSlot != -1 && maceSlot != oldSlot) {
                     mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
                 }
@@ -120,16 +112,9 @@ public class UltraMace extends Module {
     }
 
     private void executeMaceHit(Entity target, int height, double x, double y, double z) {
-        // 1. Subir al servidor (onGround false)
         sendPositionPacket(x, y + height, z, false);
-        
-        // 2. Bajar (Seguimos en false para que el server no nos mate)
         sendPositionPacket(x, y, z, false); 
-        
-        // 3. Atacar (La maza detectará la caída acumulada desde 'height')
         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
-        
-        // 4. Paquete de seguridad para resetear caída sin morir
         sendPositionPacket(x, y, z, false);
     }
 
