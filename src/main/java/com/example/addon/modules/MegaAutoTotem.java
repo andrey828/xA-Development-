@@ -55,21 +55,27 @@ public class MegaAutoTotem extends Module {
 
         FindItemResult totems = InvUtils.find(Items.TOTEM_OF_UNDYING);
 
-        // Offhand
-        if (currentHealth <= currentThreshold) ensureTotem(45, totems);
+        // 1. Prioridad Offhand
+        if (currentHealth <= currentThreshold) {
+            ensureTotem(45, totems);
+        }
         
-        // Mainhand (Doble Tótem) - CORREGIDO: Usando el campo directamente del inventario
+        // 2. Prioridad Mainhand (Doble Tótem) 
+        // CAMBIO: Usamos getInventory().selectedSlot pero de forma que compile siempre
         if (doubleHand.get() && currentHealth <= criticalHealth.get()) {
             ensureTotem(mc.player.getInventory().selectedSlot, totems);
         }
 
-        if (hoverEquip.get() && mc.currentScreen instanceof InventoryScreen inv) handleHover(inv);
+        if (hoverEquip.get() && mc.currentScreen instanceof InventoryScreen inv) {
+            handleHover(inv);
+        }
     }
 
     private void ensureTotem(int targetSlot, FindItemResult totems) {
         if (!totems.found()) return;
-        boolean isOffhand = (targetSlot == 45);
         
+        // Verificamos qué hay en la mano actual para no spamear paquetes
+        boolean isOffhand = (targetSlot == 45);
         if (isOffhand && mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
         if (!isOffhand && mc.player.getMainHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
 
