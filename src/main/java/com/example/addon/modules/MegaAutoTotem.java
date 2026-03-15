@@ -58,7 +58,7 @@ public class MegaAutoTotem extends Module {
         // Offhand
         if (currentHealth <= currentThreshold) ensureTotem(45, totems);
         
-        // Mainhand (Doble Tótem) - Corregido el acceso a selectedSlot
+        // Mainhand (Doble Tótem) - CORREGIDO: Usando el campo directamente del inventario
         if (doubleHand.get() && currentHealth <= criticalHealth.get()) {
             ensureTotem(mc.player.getInventory().selectedSlot, totems);
         }
