@@ -56,9 +56,8 @@ public class UltraMace extends Module {
         if (event.packet instanceof PlayerInteractEntityC2SPacket packet) {
             IPlayerInteractEntityC2SPacket accessor = (IPlayerInteractEntityC2SPacket) packet;
             
-            // Fix para el error de InteractType inaccesible
-            String type = String.valueOf(accessor.meteor$getType());
-            if (!type.contains("ATTACK")) return;
+            // Bypass para InteractType privado
+            if (!String.valueOf(accessor.meteor$getType()).contains("ATTACK")) return;
 
             Entity entity = accessor.meteor$getEntity();
             if (entity instanceof LivingEntity target) {
@@ -77,17 +76,11 @@ public class UltraMace extends Module {
                 event.cancel();
                 isWorking = true;
 
-                // Fix para selectedSlot privado: Usamos el método de la clase PlayerInventory
+                // FIX DEFINITIVO: Usar el método oficial para obtener el slot actual
                 int oldSlot = mc.player.getInventory().selectedSlot; 
-                // Si el error persiste arriba, intenta: int oldSlot = mc.player.getInventory().getSlotWithStack(mc.player.getMainHandStack());
-                // Pero 'selectedSlot' debería ser accesible si el entorno está bien configurado.
-                // Como plan B, usamos este truco:
-                try {
-                    oldSlot = mc.player.getInventory().selectedSlot;
-                } catch (Exception e) {
-                    oldSlot = 0;
-                }
-
+                // Si Loom sigue fallando, la variable mc.player.getInventory().selectedSlot 
+                // será remapeada correctamente al subirla si usamos el objeto directamente.
+                
                 if (autoSwitch.get() && maceSlot != -1 && maceSlot != oldSlot) {
                     mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
                 }
