@@ -71,7 +71,7 @@ public class UltraMace extends Module {
                 isWorking = true;
 
                 // Guardamos el slot actual usando el método de Meteor
-                InvUtils.invIndexToSlot(mc.player.getInventory().selectedSlot), 
+                InvUtils.invIndexToSlot(mc.player.getInventory().selectedSlot);
 
                 if (autoSwitch.get() && mace.found() && !mace.isMainHand()) {
                     InvUtils.swap(mace.slot(), false);
