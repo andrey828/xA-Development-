@@ -9,17 +9,16 @@ import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.item.ArmorItem;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 
 public class SuperSwap extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    // Configuració de la tecla per fer el canvi
     private final Setting<Keybind> swapKey = sgGeneral.add(new KeybindSetting.Builder()
-        .name("tecla-canvi")
-        .description("La tecla que farà l'intercanvi entre Èlitres i Pitrera.")
+        .name("tecla-cambio")
+        .description("La tecla para cambiar entre Elytras y Pechera.")
         .defaultValue(Keybind.none())
         .build()
     );
@@ -27,14 +26,13 @@ public class SuperSwap extends Module {
     private boolean wasPressed = false;
 
     public SuperSwap() {
-        super(AddonTemplate.CATEGORY, "SuperSwap", "Canvia ràpidament entre Èlitres i Pitrera amb una tecla.");
+        super(AddonTemplate.CATEGORY, "SuperSwap", "Cambia rápidamente entre Elytras y Pechera con una tecla.");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null) return;
 
-        // Comprovem si s'ha premut la tecla sense fer "spam"
         boolean isPressed = swapKey.get().isPressed();
         if (isPressed && !wasPressed) {
             swapGear();
@@ -43,22 +41,27 @@ public class SuperSwap extends Module {
     }
 
     private void swapGear() {
-        // Obtenim el que portem posat actualment al tors (índex 2 de l'armadura)
-        ItemStack currentChest = mc.player.getInventory().getArmorStack(2);
+        // Usamos getEquippedStack que es un método universal y no da errores de mapeo
+        ItemStack currentChest = mc.player.getEquippedStack(EquipmentSlot.CHEST);
 
         if (currentChest.getItem() == Items.ELYTRA) {
-            // Si portem Èlitres, busquem una pitrera a l'inventari
-            FindItemResult chestplate = InvUtils.find(itemStack -> 
-                itemStack.getItem() instanceof ArmorItem && 
-                ((ArmorItem) itemStack.getItem()).getSlotType() == EquipmentSlot.CHEST
-            );
+            // Buscamos las pecheras manualmente para evitar la clase conflictiva ArmorItem
+            FindItemResult chestplate = InvUtils.find(itemStack -> {
+                Item i = itemStack.getItem();
+                return i == Items.NETHERITE_CHESTPLATE || 
+                       i == Items.DIAMOND_CHESTPLATE || 
+                       i == Items.IRON_CHESTPLATE || 
+                       i == Items.GOLDEN_CHESTPLATE || 
+                       i == Items.CHAINMAIL_CHESTPLATE || 
+                       i == Items.LEATHER_CHESTPLATE;
+            });
             
             if (chestplate.found()) {
-                // El slot 6 de l'inventari correspon al pit
+                // El slot 6 corresponde a la pechera en el inventario del jugador
                 InvUtils.move().from(chestplate.slot()).to(6);
             }
         } else {
-            // Si portem pitrera (o res), busquem les Èlitres
+            // Si llevamos pechera o no llevamos nada, buscamos las Elytras
             FindItemResult elytra = InvUtils.find(Items.ELYTRA);
             
             if (elytra.found()) {
