@@ -12,82 +12,121 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
+import net.minecraft.util.math.Vec3d;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class SuperAura extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private final SettingGroup sgExploit = settings.createGroup("Exploit Config");
 
-    private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder().name("range").defaultValue(400.0).min(1.0).sliderMax(1000.0).build());
-    private final Setting<Boolean> tpBypass = sgGeneral.add(new BoolSetting.Builder().name("tp-bypass").defaultValue(true).build());
-    private final Setting<Boolean> onlyPlayers = sgGeneral.add(new BoolSetting.Builder().name("only-players").defaultValue(true).build());
-    private final Setting<Boolean> ignoreFriends = sgGeneral.add(new BoolSetting.Builder().name("ignore-friends").defaultValue(true).build());
-    private final Setting<Boolean> rotate = sgGeneral.add(new BoolSetting.Builder().name("rotate").defaultValue(true).build());
+    // --- CONFIGURACIÓN GENERAL ---
+    private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder()
+        .name("range")
+        .description("Distancia máxima de ataque (Default 6).")
+        .defaultValue(6.0)
+        .min(1)
+        .sliderMax(100.0)
+        .build()
+    );
 
-    private Entity target;
+    private final Setting<Integer> attackDelay = sgGeneral.add(new IntSetting.Builder()
+        .name("attack-ms")
+        .description("Milisegundos entre cada golpe.")
+        .defaultValue(50)
+        .min(0)
+        .sliderMax(1000)
+        .build()
+    );
+
+    private final Setting<Boolean> ignoreFriends = sgGeneral.add(new BoolSetting.Builder()
+        .name("ignore-friends")
+        .description("No toca a tus amigos de Meteor.")
+        .defaultValue(true)
+        .build()
+    );
+
+    // --- CONFIGURACIÓN EXPLOIT ---
+    private final Setting<Double> dashStep = sgExploit.add(new DoubleSetting.Builder()
+        .name("dash-step")
+        .description("Tamaño de los saltos de TP (8.5 es el punto dulce).")
+        .defaultValue(8.5)
+        .min(1)
+        .sliderMax(10.0)
+        .build()
+    );
+
+    private long lastAttackTime = 0;
 
     public SuperAura() {
-        super(AddonTemplate.CATEGORY, "SuperAura", "Killaura con TP-Bypass para distancias extremas.");
+        super(AddonTemplate.CATEGORY, "SuperAura", "Infinite Aura nivel Dios con bypass de amigos y delay.");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null || !mc.player.isAlive()) {
-            target = null;
-            return;
-        }
+        if (mc.player == null || mc.world == null) return;
 
-        target = findTarget();
-        if (target == null) return;
+        // Validar delay de ataque
+        if (System.currentTimeMillis() - lastAttackTime < attackDelay.get()) return;
 
-        if (rotate.get()) {
-            Rotations.rotate(Rotations.getYaw(target), Rotations.getPitch(target), () -> attackTarget(target));
-        } else {
-            attackTarget(target);
-        }
-    }
-
-    private Entity findTarget() {
-        List<Entity> entities = StreamSupport.stream(mc.world.getEntities().spliterator(), false)
-            .filter(e -> e instanceof LivingEntity && e.isAlive() && e != mc.player)
-            .filter(e -> mc.player.distanceTo(e) <= range.get())
+        // Buscar objetivo más cercano
+        Entity target = mc.world.getEntities().stream()
+            .filter(e -> e instanceof LivingEntity && e != mc.player && e.isAlive())
             .filter(e -> {
-                if (onlyPlayers.get() && !(e instanceof PlayerEntity)) return false;
-                if (ignoreFriends.get() && e instanceof PlayerEntity && Friends.get().isFriend((PlayerEntity) e)) return false;
+                if (!ignoreFriends.get()) return true;
+                if (e instanceof PlayerEntity) return !Friends.get().isFriend((PlayerEntity) e);
                 return true;
             })
-            .sorted(Comparator.comparingDouble(e -> mc.player.distanceTo(e)))
-            .collect(Collectors.toList());
+            .filter(e -> mc.player.distanceTo(e) <= range.get())
+            .min(Comparator.comparingDouble(e -> mc.player.distanceTo(e)))
+            .orElse(null);
 
-        return entities.isEmpty() ? null : entities.get(0);
-    }
+        if (target == null) return;
 
-    private void attackTarget(Entity entity) {
-        if (mc.player.getAttackCooldownProgress(0.5f) < 0.9f) return;
+        Vec3d origin = mc.player.getPos();
+        Vec3d targetPos = target.getPos();
 
-        if (tpBypass.get() && mc.player.distanceTo(entity) > 5) {
-            double ox = mc.player.getX();
-            double oy = mc.player.getY();
-            double oz = mc.player.getZ();
-            
-            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(entity.getX(), entity.getY(), entity.getZ(), false, mc.player.horizontalCollision));
-            
-            mc.interactionManager.attackEntity(mc.player, entity);
-            mc.player.swingHand(Hand.MAIN_HAND);
-            
-            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(ox, oy, oz, true, mc.player.horizontalCollision));
-        } else {
-            mc.interactionManager.attackEntity(mc.player, entity);
-            mc.player.swingHand(Hand.MAIN_HAND);
+        // Calcular camino de paquetes para el bypass de 100 bloques
+        List<Vec3d> path = createPath(origin, targetPos);
+
+        // 1. VIAJE RELÁMPAGO (IDA)
+        for (Vec3d step : path) {
+            sendPos(step);
         }
+
+        // 2. EJECUCIÓN DEL GOLPE
+        Rotations.rotate(Rotations.getYaw(target), Rotations.getPitch(target), () -> {
+            mc.interactionManager.attackEntity(mc.player, target);
+            mc.player.swingHand(Hand.MAIN_HAND);
+            lastAttackTime = System.currentTimeMillis();
+        });
+
+        // 3. REGRESO INSTANTÁNEO (VUELTA)
+        for (int i = path.size() - 1; i >= 0; i--) {
+            sendPos(path.get(i));
+        }
+        
+        // Paquete final para asegurar posición original
+        sendPos(origin);
     }
 
-    @Override
-    public String getInfoString() {
-        if (target != null) return target.getName().getString();
-        return null;
+    private List<Vec3d> createPath(Vec3d start, Vec3d end) {
+        List<Vec3d> path = new ArrayList<>();
+        double distance = start.distanceTo(end);
+        double steps = Math.ceil(distance / dashStep.get());
+
+        if (steps > 0) {
+            for (int i = 1; i <= steps; i++) {
+                path.add(start.lerp(end, i / steps));
+            }
+        }
+        return path;
+    }
+
+    private void sendPos(Vec3d pos) {
+        // Exploit de paquetes de posición
+        mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(pos.x, pos.y, pos.z, true));
     }
 }
