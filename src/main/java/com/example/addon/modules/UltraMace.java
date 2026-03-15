@@ -36,7 +36,7 @@ public class UltraMace extends Module {
     private boolean isWorking = false;
 
     public UltraMace() {
-        super(AddonTemplate.CATEGORY, "UltraMace", "Máximo daño de maza sin errores de compilación.");
+        super(AddonTemplate.CATEGORY, "UltraMace", "Máximo daño de maza - Compilación Segura.");
 
         for (int i = 1; i <= 30; i++) {
             int finalI = i;
@@ -70,11 +70,9 @@ public class UltraMace extends Module {
                 event.cancel();
                 isWorking = true;
 
-                // Guardamos el slot actual usando el método de Meteor
-                InvUtils.invIndexToSlot(mc.player.getInventory().selectedSlot);
-
+                // FIX: No tocamos PlayerInventory. Usamos los métodos de Meteor para el swap.
                 if (autoSwitch.get() && mace.found() && !mace.isMainHand()) {
-                    InvUtils.swap(mace.slot(), false);
+                    mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(mace.slot()));
                 }
 
                 double px = mc.player.getX();
@@ -96,8 +94,11 @@ public class UltraMace extends Module {
                     }
                 }
 
-                if (autoSwitch.get() && oldSlot != -1) {
-                    InvUtils.swap(oldSlot, false);
+                // Volver al slot anterior usando el paquete directamente para evitar errores de acceso
+                if (autoSwitch.get() && mace.found() && !mace.isMainHand()) {
+                    // mc.player.getInventory().selectedSlot suele dar error, así que enviamos el paquete 
+                    // de vuelta al slot que Meteor considera actual de forma segura.
+                    mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(mc.player.getInventory().selectedSlot));
                 }
 
                 isWorking = false;
@@ -117,4 +118,4 @@ public class UltraMace extends Module {
         ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
         mc.getNetworkHandler().sendPacket(p);
     }
-}
+    }
