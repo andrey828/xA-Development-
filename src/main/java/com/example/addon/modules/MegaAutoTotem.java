@@ -9,6 +9,7 @@ import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
+import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
@@ -53,20 +54,32 @@ public class MegaAutoTotem extends Module {
 
         FindItemResult totems = InvUtils.find(Items.TOTEM_OF_UNDYING);
 
-        // 1. Offhand
+        // 1. Offhand (Slot 45)
         if (currentHealth <= currentThreshold) {
             ensureTotem(45, totems);
         }
         
         // 2. Mainhand (Doble Tótem)
-        // Usamos el índice de la hotbar actual directamente desde el inventario (campo público)
+        // Usamos nuestro buscador inteligente para encontrar la mano actual
         if (doubleHand.get() && currentHealth <= criticalHealth.get()) {
-            ensureTotem(mc.player.getInventory().selectedSlot, totems);
+            ensureTotem(getHandSlot(), totems);
         }
 
         if (hoverEquip.get() && mc.currentScreen instanceof InventoryScreen inv) {
             handleHover(inv);
         }
+    }
+
+    // EL TRUCO: Buscamos qué hueco de la hotbar tiene el ítem que estamos agarrando.
+    // Esto evita 100% usar variables privadas y burla al compilador.
+    private int getHandSlot() {
+        ItemStack mainHand = mc.player.getMainHandStack();
+        for (int i = 0; i < 9; i++) {
+            if (mc.player.getInventory().getStack(i) == mainHand) {
+                return i;
+            }
+        }
+        return 0; // Por si acaso hay un error, lo pone en el primer hueco
     }
 
     private void ensureTotem(int targetSlot, FindItemResult totems) {
