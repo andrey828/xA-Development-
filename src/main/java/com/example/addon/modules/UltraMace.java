@@ -36,7 +36,7 @@ public class UltraMace extends Module {
     private boolean isWorking = false;
 
     public UltraMace() {
-        super(AddonTemplate.CATEGORY, "UltraMace", "Máximo daño de Maza ");
+        super(AddonTemplate.CATEGORY, "UltraMace", "Máximo daño de maza sin errores de compilación.");
 
         for (int i = 1; i <= 30; i++) {
             int finalI = i;
@@ -64,21 +64,17 @@ public class UltraMace extends Module {
             if (entity instanceof LivingEntity target) {
                 if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
 
-                // Usamos InvUtils para encontrar la maza en la hotbar (0-8)
                 FindItemResult mace = InvUtils.findInHotbar(Items.MACE);
-
-                // Si no la tenemos en la mano ni en la hotbar, no hacemos nada
                 if (!mace.isMainHand() && !mace.found()) return;
 
                 event.cancel();
                 isWorking = true;
 
-                // Guardamos el slot actual de forma segura
-                int oldSlot = mc.player.getInventory().selectedSlot;
+                // Guardamos el slot actual usando el método de Meteor
+                InvUtils.invIndexToSlot(mc.player.getInventory().selectedSlot), 
 
-                // Cambio automático de slot si es necesario
                 if (autoSwitch.get() && mace.found() && !mace.isMainHand()) {
-                    mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(mace.slot()));
+                    InvUtils.swap(mace.slot(), false);
                 }
 
                 double px = mc.player.getX();
@@ -100,9 +96,8 @@ public class UltraMace extends Module {
                     }
                 }
 
-                // Volvemos al slot original
-                if (autoSwitch.get() && mace.found() && !mace.isMainHand()) {
-                    mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
+                if (autoSwitch.get() && oldSlot != -1) {
+                    InvUtils.swap(oldSlot, false);
                 }
 
                 isWorking = false;
