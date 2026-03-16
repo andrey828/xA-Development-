@@ -22,7 +22,7 @@ public class MegaAutoTotem extends Module {
     // --- NUEVO MODO STRICT ---
     private final Setting<Boolean> strictMode = sgGeneral.add(new BoolSetting.Builder()
         .name("strict-mode")
-        .description("Fuerza tótems en ambas manos siempre, ignorando vida y delay.")
+        .description("Fuerza tótems en ambas manos siempre, saltándose todo el delay y lógica de vida.")
         .defaultValue(false)
         .build()
     );
@@ -51,14 +51,14 @@ public class MegaAutoTotem extends Module {
         FindItemResult totems = InvUtils.find(Items.TOTEM_OF_UNDYING);
         if (!totems.found()) return;
 
-        // LÓGICA STRICT: Salto de todas las condiciones
+        // MODO STRICT: Salta directamente a equipar sin comprobar vida ni delays
         if (strictMode.get()) {
-            ensureTotem(45, totems); // Mano izquierda
-            ensureTotem(getHandSlot(), totems); // Mano derecha
-            return; // Salimos para no procesar la lógica normal
+            ensureTotem(45, totems); // Offhand
+            ensureTotem(getHandSlot(), totems); // Mainhand
+            return; 
         }
 
-        // LÓGICA NORMAL (Si Strict está desactivado)
+        // LÓGICA NORMAL
         double currentHealth = mc.player.getHealth() + mc.player.getAbsorptionAmount();
         double healthDiff = lastHealth - currentHealth;
         lastHealth = currentHealth;
@@ -71,7 +71,6 @@ public class MegaAutoTotem extends Module {
 
         if (damagePrediction.get() && healthDiff > 8) currentThreshold = 36;
 
-        // Ejecución normal por salud
         if (currentHealth <= currentThreshold) {
             ensureTotem(45, totems);
         }
@@ -85,6 +84,7 @@ public class MegaAutoTotem extends Module {
         }
     }
 
+    // Usando exactamente tu método original para evitar errores de acceso privado
     private int getHandSlot() {
         ItemStack mainHand = mc.player.getMainHandStack();
         for (int i = 0; i < 9; i++) {
@@ -92,13 +92,11 @@ public class MegaAutoTotem extends Module {
                 return i;
             }
         }
-        return mc.player.getInventory().selectedSlot; 
+        return 0; // Por si acaso hay un error, lo pone en el primer hueco
     }
 
     private void ensureTotem(int targetSlot, FindItemResult totems) {
         boolean isOffhand = (targetSlot == 45);
-        
-        // Verificamos si ya hay un tótem para no spamear paquetes innecesarios
         if (isOffhand && mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
         if (!isOffhand && mc.player.getMainHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
 
