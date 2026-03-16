@@ -20,7 +20,6 @@ public class AddonTemplate extends MeteorAddon {
         m.add(new xABackstep());
         m.add(new xArmor());
         m.add(new MegaAutoTotem());
-        m.add(new SuperSwap());
     }
 
     @Override
