@@ -10,15 +10,14 @@ import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 public class TotemGuard extends Module {
 
     public TotemGuard() {
-        super(AddonTemplate.CATEGORY, "TotemGuard", "Evita todo daño de caída incluso en caídas pequeñas.");
+        super(AddonTemplate.CATEGORY, "xNoPoP", "Nofall but better");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.getNetworkHandler() == null) return;
 
-        // Detecta cualquier caída incluso mínima
-        if (mc.player.fallDistance > 0) {
+        if (mc.player.fallDistance > 0 || mc.player.getVelocity().y < -0.1) {
 
             PlayerMoveC2SPacket.PositionAndOnGround packet =
                 new PlayerMoveC2SPacket.PositionAndOnGround(
@@ -33,7 +32,6 @@ public class TotemGuard extends Module {
 
             mc.getNetworkHandler().sendPacket(packet);
 
-            // Reset de caída
             mc.player.fallDistance = 0f;
         }
     }
