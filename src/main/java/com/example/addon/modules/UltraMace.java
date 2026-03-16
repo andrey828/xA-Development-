@@ -37,7 +37,7 @@ public class UltraMace extends Module {
     private boolean isWorking = false;
 
     public UltraMace() {
-        super(AddonTemplate.CATEGORY, "UltraMace", "Maximum Mace Power - No Limits.");
+        super(AddonTemplate.CATEGORY, "xMace", "Maximum Mace Power - No Limits.");
 
         for (int i = 3; i <= 32; i++) {
             int finalI = i;
@@ -68,7 +68,6 @@ public class UltraMace extends Module {
                 event.cancel();
                 isWorking = true;
 
-                // --- BYPASS DE COMPILACIÓN: REFLEXIÓN ---
                 int oldSlot = 0;
                 try {
                     Field field = mc.player.getInventory().getClass().getDeclaredField("selectedSlot");
@@ -134,4 +133,4 @@ public class UltraMace extends Module {
         ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
         mc.getNetworkHandler().sendPacket(p);
     }
-}
+                             }
