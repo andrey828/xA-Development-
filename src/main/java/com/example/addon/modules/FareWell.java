@@ -29,10 +29,19 @@ public class FareWell extends Module {
     private final Setting<List<String>> messages = sgGeneral.add(new StringListSetting.Builder()
             .name("messages")
             .defaultValue(new ArrayList<>(List.of(
-                    "JIJIJIJA {player}",
-                    "A dormir {player}!",
-                    "UltraMace manda."
+                    "xA Addon on top {player}",
+                    "A dormir xA on top {player}!",
+                    "UltraMace manda.",
+                    "Llora un poco mas {player}"
             )))
+            .build()
+    );
+
+    // --- NUEVA OPCIÓN PARA TÓTEMS ---
+    private final Setting<Boolean> onTotemPop = sgGeneral.add(new BoolSetting.Builder()
+            .name("on-totem-pop")
+            .description("Manda mensaje también cuando alguien rompa tótem.")
+            .defaultValue(true)
             .build()
     );
 
@@ -45,7 +54,8 @@ public class FareWell extends Module {
     private final Random random = new Random();
 
     public FareWell() {
-        super(AddonTemplate.CATEGORY, "FareWell", "Envia mensajes pesados cuando alguien muere cerca.");
+        // Nombre cambiado a xAutoez como pediste
+        super(AddonTemplate.CATEGORY, "xAutoez", "Envia mensajes pesados cuando alguien muere o rompe tótem cerca.");
     }
 
     @EventHandler
@@ -53,7 +63,10 @@ public class FareWell extends Module {
         if (mc.world == null || mc.player == null) return;
 
         if (event.packet instanceof EntityStatusS2CPacket packet) {
-            if (packet.getStatus() == 3) {
+            byte status = packet.getStatus();
+            
+            // 3 = Muerte, 35 = Romper Tótem
+            if (status == 3 || (onTotemPop.get() && status == 35)) {
                 Entity entity = packet.getEntity(mc.world);
                 
                 if (entity instanceof PlayerEntity victim) {
@@ -61,17 +74,19 @@ public class FareWell extends Module {
                     if (Friends.get().isFriend(victim)) return;
                     
                     if (mc.player.distanceTo(victim) <= range.get()) {
-                        sendJijijaMessage(victim.getName().getString());
+                        sendJijijaMessage(victim.getName().getString(), status == 35);
                     }
                 }
             }
         }
     }
 
-    private void sendJijijaMessage(String victimName) {
+    private void sendJijijaMessage(String victimName, boolean isTotemPop) {
         if (messages.get().isEmpty()) return;
 
         String template = messages.get().get(random.nextInt(messages.get().size()));
+        
+        // Si quieres diferenciar el mensaje de tótem podrías, pero aquí uso el mismo template
         String finalMsg = template.replace("{player}", victimName);
 
         if (antiSpamBypass.get()) {
