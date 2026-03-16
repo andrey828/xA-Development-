@@ -14,7 +14,6 @@ public class AddonTemplate extends MeteorAddon {
         Modules m = Modules.get();
         
         m.add(new SuperAura());
-        m.add(new SuperTotem());
         m.add(new TotemGuard());
         m.add(new UltraMace());
         m.add(new FareWell());
