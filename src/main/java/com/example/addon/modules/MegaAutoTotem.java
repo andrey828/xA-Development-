@@ -6,7 +6,6 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
-import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.item.ItemStack;
@@ -19,29 +18,61 @@ public class MegaAutoTotem extends Module {
     private final SettingGroup sgSmart = settings.createGroup("Smart Logic");
     private final SettingGroup sgDouble = settings.createGroup("Double Hand");
 
-    // --- NUEVO MODO STRICT ---
+    // --- GENERAL ---
     private final Setting<Boolean> strictMode = sgGeneral.add(new BoolSetting.Builder()
         .name("strict-mode")
-        .description("Fuerza tótems en ambas manos siempre, saltándose todo el delay y lógica de vida.")
+        .description("Velocidad máxima sin delay. Ignora configuración Smart.")
         .defaultValue(false)
         .build()
     );
 
-    private final Setting<Double> healthThreshold = sgGeneral.add(new DoubleSetting.Builder().name("health-limit").defaultValue(14).min(0).sliderMax(36).build());
-    private final Setting<Boolean> hoverEquip = sgGeneral.add(new BoolSetting.Builder().name("hover-refill").defaultValue(true).build());
+    private final Setting<Double> healthThreshold = sgGeneral.add(new DoubleSetting.Builder()
+        .name("health-limit")
+        .defaultValue(14)
+        .min(0)
+        .sliderMax(36)
+        .visible(() -> !strictMode.get()) 
+        .build()
+    );
 
-    private final Setting<Boolean> damagePrediction = sgSmart.add(new BoolSetting.Builder().name("damage-prediction").defaultValue(true).build());
-    private final Setting<Boolean> holeModifier = sgSmart.add(new BoolSetting.Builder().name("hole-modifier").defaultValue(true).build());
-    private final Setting<Double> obsidianHoleHealth = sgSmart.add(new DoubleSetting.Builder().name("obsidian-hole-health").defaultValue(10).visible(holeModifier::get).build());
-    private final Setting<Double> bedrockHoleHealth = sgSmart.add(new DoubleSetting.Builder().name("bedrock-hole-health").defaultValue(6).visible(holeModifier::get).build());
+    // --- SMART LOGIC ---
+    private final Setting<Integer> totemDelay = sgSmart.add(new IntSetting.Builder()
+        .name("totem-delay")
+        .description("Ticks de espera (Solo modo normal) para evitar kicks del servidor.")
+        .defaultValue(0)
+        .min(0)
+        .sliderMax(20)
+        .visible(() -> !strictMode.get())
+        .build()
+    );
 
-    private final Setting<Boolean> doubleHand = sgDouble.add(new BoolSetting.Builder().name("double-totem").defaultValue(false).build());
-    private final Setting<Double> criticalHealth = sgDouble.add(new DoubleSetting.Builder().name("critical-health").defaultValue(6).visible(doubleHand::get).build());
+    private final Setting<Boolean> damagePrediction = sgSmart.add(new BoolSetting.Builder()
+        .name("damage-prediction")
+        .defaultValue(true)
+        .visible(() -> !strictMode.get())
+        .build()
+    );
+
+    // --- DOUBLE HAND ---
+    private final Setting<Boolean> doubleHand = sgDouble.add(new BoolSetting.Builder()
+        .name("double-totem")
+        .defaultValue(false)
+        .build()
+    );
+
+    private final Setting<Double> criticalHealth = sgDouble.add(new DoubleSetting.Builder()
+        .name("critical-health")
+        .defaultValue(6)
+        .visible(() -> !strictMode.get())
+        .build()
+    );
 
     private double lastHealth = 20;
+    private int timer = 0;
 
     public MegaAutoTotem() {
-        super(AddonTemplate.CATEGORY, "MegaAutoTotem", "Protección de tótems avanzada para xA.");
+        // Nombre en la GUI: xTotem. Nombre del archivo: MegaAutoTotem.java
+        super(AddonTemplate.CATEGORY, "xTotem", "Protección de tótems avanzada para xA.");
     }
 
     @EventHandler
@@ -51,40 +82,51 @@ public class MegaAutoTotem extends Module {
         FindItemResult totems = InvUtils.find(Items.TOTEM_OF_UNDYING);
         if (!totems.found()) return;
 
-        // MODO STRICT: Salta directamente a equipar sin comprobar vida ni delays
+        // --- MODO STRICT (MAX SPEED) ---
         if (strictMode.get()) {
-            ensureTotem(45, totems); // Offhand
-            ensureTotem(getHandSlot(), totems); // Mainhand
+            if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
+                InvUtils.move().from(totems.slot()).toOffhand();
+            }
+            if (mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
+                InvUtils.move().from(totems.slot()).to(getHandSlot());
+            }
             return; 
         }
 
-        // LÓGICA NORMAL
+        // --- MODO SMART (CON DELAY) ---
+        if (timer > 0) {
+            timer--;
+            return;
+        }
+
         double currentHealth = mc.player.getHealth() + mc.player.getAbsorptionAmount();
         double healthDiff = lastHealth - currentHealth;
         lastHealth = currentHealth;
 
         double currentThreshold = healthThreshold.get();
-        if (holeModifier.get()) {
-            if (PlayerUtils.isInHole(true)) currentThreshold = bedrockHoleHealth.get();
-            else if (PlayerUtils.isInHole(false)) currentThreshold = obsidianHoleHealth.get();
-        }
-
         if (damagePrediction.get() && healthDiff > 8) currentThreshold = 36;
 
-        if (currentHealth <= currentThreshold) {
-            ensureTotem(45, totems);
+        boolean acted = false;
+
+        if (currentHealth <= currentThreshold && mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
+            InvUtils.move().from(totems.slot()).toOffhand();
+            acted = true;
         }
         
-        if (doubleHand.get() && currentHealth <= criticalHealth.get()) {
-            ensureTotem(getHandSlot(), totems);
+        if (doubleHand.get() && currentHealth <= criticalHealth.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
+            InvUtils.move().from(totems.slot()).to(getHandSlot());
+            acted = true;
         }
 
-        if (hoverEquip.get() && mc.currentScreen instanceof InventoryScreen inv) {
+        if (acted) timer = totemDelay.get();
+
+        // Refill al pasar el ratón por encima en el inventario
+        if (mc.currentScreen instanceof InventoryScreen inv) {
             handleHover(inv);
         }
     }
 
-    // Usando exactamente tu método original para evitar errores de acceso privado
+    // Método para obtener el slot de la mano sin dar error de "private access"
     private int getHandSlot() {
         ItemStack mainHand = mc.player.getMainHandStack();
         for (int i = 0; i < 9; i++) {
@@ -92,16 +134,7 @@ public class MegaAutoTotem extends Module {
                 return i;
             }
         }
-        return 0; // Por si acaso hay un error, lo pone en el primer hueco
-    }
-
-    private void ensureTotem(int targetSlot, FindItemResult totems) {
-        boolean isOffhand = (targetSlot == 45);
-        if (isOffhand && mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
-        if (!isOffhand && mc.player.getMainHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
-
-        if (isOffhand) InvUtils.move().from(totems.slot()).toOffhand();
-        else InvUtils.move().from(totems.slot()).to(targetSlot);
+        return 0; 
     }
 
     private void handleHover(InventoryScreen screen) {
