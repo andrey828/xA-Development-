@@ -3,8 +3,7 @@
   "package": "com.example.addon.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "PlayerMoveC2SPacketAccessor",
-    "LivingEntityMixin"
+    "PlayerMoveC2SPacketAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
