@@ -38,7 +38,7 @@ public class CustomFOV extends Module {
     );
 
     public CustomFOV() {
-        super(AddonTemplate.VISUALS, "CustomFOV", "Control avanzado del FOV y animaciones.");
+        super(AddonTemplate.VISUALS, "xCustomFOV", "Control avanzado del FOV y animaciones.");
     }
 
     @EventHandler
