@@ -5,11 +5,8 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.entity.SortPriority;
-import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.orbit.EventHandler;
-
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
@@ -21,45 +18,38 @@ import net.minecraft.util.math.Vec3d;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.Comparator;
+import java.util.stream.StreamSupport;
 
 public class SuperAura extends Module {
 
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
-    private final SettingGroup sgTargeting = settings.createGroup("Targeting");
-    private final SettingGroup sgMulti = settings.createGroup("Multi-Target");
 
-    private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder().name("range").defaultValue(50.0).min(1.0).sliderMax(200.0).build());
-    private final Setting<Integer> hitDelay = sgGeneral.add(new IntSetting.Builder().name("hit-delay").defaultValue(10).min(0).sliderMax(40).build());
-    private final Setting<Double> blinkStep = sgGeneral.add(new DoubleSetting.Builder().name("blink-step").defaultValue(8.5).min(1.0).sliderMax(20.0).build());
+    private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder().name("range").defaultValue(100.0).min(1.0).sliderMax(250.0).build());
+    private final Setting<Integer> hitDelay = sgGeneral.add(new IntSetting.Builder().name("hit-delay").defaultValue(5).min(0).sliderMax(40).build());
+    private final Setting<Double> blinkStep = sgGeneral.add(new DoubleSetting.Builder().name("blink-step").defaultValue(8.0).min(1.0).sliderMax(20.0).build());
     private final Setting<Boolean> rotate = sgGeneral.add(new BoolSetting.Builder().name("rotate").defaultValue(true).build());
-    private final Setting<Boolean> tpBypass = sgGeneral.add(new BoolSetting.Builder().name("tp-bypass").defaultValue(true).build());
+    private final Setting<Set<EntityType<?>>> entities = sgGeneral.add(new EntityTypeListSetting.Builder().name("entities").onlyAttackable().defaultValue(EntityType.PLAYER).build());
 
-    private final Setting<Set<EntityType<?>>> entities = sgTargeting.add(new EntityTypeListSetting.Builder().name("entities").onlyAttackable().defaultValue(EntityType.PLAYER).build());
-    private final Setting<Boolean> multiTarget = sgMulti.add(new BoolSetting.Builder().name("multi-target").defaultValue(true).build());
-    private final Setting<Double> multiRange = sgMulti.add(new DoubleSetting.Builder().name("aoe-range").defaultValue(6.0).min(1.0).sliderMax(10.0).visible(multiTarget::get).build());
-
-    private final List<Entity> targets = new ArrayList<>();
     private Entity primaryTarget;
     private int timer;
 
     public SuperAura() {
-        super(AddonTemplate.CATEGORY, "xAura", " KillAura con teletransporte que golpea a distancias extremas. ");
+        super(AddonTemplate.CATEGORY, "xAura", "Infinite Reach KillAura.");
     }
 
     @Override
     public void onActivate() {
         timer = 0;
-        primaryTarget = null;
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null || !mc.player.isAlive()) return;
-        if (timer > 0) timer--;
+        if (timer > 0) { timer--; return; }
 
-        targets.clear();
-        TargetUtils.getList(targets, this::entityCheck, SortPriority.LowestDistance, 1);
-        primaryTarget = targets.isEmpty() ? null : targets.get(0);
+        // BUSQUEDA MANUAL (Esto ignora el límite de 6 bloques de TargetUtils)
+        primaryTarget = findTarget();
 
         if (primaryTarget == null) return;
 
@@ -71,58 +61,38 @@ public class SuperAura extends Module {
     }
 
     private void executeAura() {
-        if (timer > 0 || primaryTarget == null) return;
-
-        // --- FIX: Reemplazamos getPos() por creación manual de Vec3d ---
         Vec3d startPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         Vec3d targetPos = new Vec3d(primaryTarget.getX(), primaryTarget.getY(), primaryTarget.getZ());
-        
         double distance = startPos.distanceTo(targetPos);
 
-        if (tpBypass.get() && distance > 4.0) {
-            double step = blinkStep.get();
-            int steps = (int) Math.ceil(distance / step);
+        // Lógica de Teleport Bypass
+        double step = blinkStep.get();
+        int steps = (int) Math.ceil(distance / step);
 
-            for (int i = 1; i <= steps; i++) {
-                double ratio = (double) i / steps;
-                Vec3d intermediatePos = startPos.lerp(targetPos, ratio);
-
-                mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
-                        intermediatePos.x, intermediatePos.y, intermediatePos.z, true, false
-                ));
-
-                if (i == steps) hitEntitiesAt(intermediatePos);
-            }
-
-            mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
-                    startPos.x, startPos.y, startPos.z, true, false
-            ));
-        } else {
-            mc.interactionManager.attackEntity(mc.player, primaryTarget);
-            mc.player.swingHand(Hand.MAIN_HAND);
-            if (multiTarget.get()) hitEntitiesAt(startPos);
+        // Ida
+        for (int i = 1; i <= steps; i++) {
+            Vec3d nextStep = startPos.lerp(targetPos, (double) i / steps);
+            mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(nextStep.x, nextStep.y, nextStep.z, true, false));
         }
+
+        // Ataque
+        mc.interactionManager.attackEntity(mc.player, primaryTarget);
+        mc.player.swingHand(Hand.MAIN_HAND);
+
+        // Vuelta
+        mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(startPos.x, startPos.y, startPos.z, true, false));
 
         timer = hitDelay.get();
     }
 
-    private void hitEntitiesAt(Vec3d impactPos) {
-        double rangeSq = multiRange.get() * multiRange.get();
-        List<Entity> aoeTargets = new ArrayList<>();
-        TargetUtils.getList(aoeTargets, e -> entityCheck(e) && e.squaredDistanceTo(impactPos.x, impactPos.y, impactPos.z) <= rangeSq, SortPriority.LowestDistance, 5);
-
-        for (Entity e : aoeTargets) {
-            if (e.equals(mc.player)) continue;
-            mc.interactionManager.attackEntity(mc.player, e);
-            mc.player.swingHand(Hand.MAIN_HAND);
-            if (!multiTarget.get()) break;
-        }
-    }
-
-    private boolean entityCheck(Entity entity) {
-        if (!(entity instanceof LivingEntity) || !entity.isAlive() || entity == mc.player) return false;
-        if (!entities.get().contains(entity.getType())) return false;
-        if (entity instanceof PlayerEntity && Friends.get().isFriend((PlayerEntity) entity)) return false;
-        return mc.player.distanceTo(entity) <= range.get();
+    private Entity findTarget() {
+        double rSq = range.get() * range.get();
+        return StreamSupport.stream(mc.world.getEntities().spliterator(), false)
+            .filter(e -> e instanceof LivingEntity && e.isAlive() && e != mc.player)
+            .filter(e -> entities.get().contains(e.getType()))
+            .filter(e -> mc.player.squaredDistanceTo(e) <= rSq)
+            .filter(e -> !(e instanceof PlayerEntity) || !Friends.get().isFriend((PlayerEntity) e))
+            .min(Comparator.comparingDouble(e -> mc.player.squaredDistanceTo(e)))
+            .orElse(null);
     }
 }
