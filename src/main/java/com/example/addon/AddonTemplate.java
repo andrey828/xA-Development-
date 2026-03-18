@@ -27,6 +27,7 @@ public class AddonTemplate extends MeteorAddon {
         m.add(new MegaAutoTotem());
         m.add(new xRPC());
         m.add(new FlightPlus());
+        m.add(new CustomFOV());
     }
     
 
