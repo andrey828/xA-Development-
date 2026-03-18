@@ -7,12 +7,17 @@ import meteordevelopment.meteorclient.systems.modules.Modules;
 import net.minecraft.item.Items;
 
 public class AddonTemplate extends MeteorAddon {
+
+    // Categoría principal
     public static final Category CATEGORY = new Category("xAddon", Items.MACE.getDefaultStack());
+
+    // Categoría visual
+    public static final Category VISUALS = new Category("xA Visuals", Items.ENDER_EYE.getDefaultStack());
 
     @Override
     public void onInitialize() {
         Modules m = Modules.get();
-        
+
         m.add(new SuperAura());
         m.add(new TotemGuard());
         m.add(new UltraMace());
@@ -21,11 +26,14 @@ public class AddonTemplate extends MeteorAddon {
         m.add(new xArmor());
         m.add(new MegaAutoTotem());
         m.add(new xRPC());
+        m.add(new FlightPlus());
     }
+    
 
     @Override
     public void onRegisterCategories() {
         Modules.registerCategory(CATEGORY);
+        Modules.registerCategory(VISUALS);
     }
 
     @Override
