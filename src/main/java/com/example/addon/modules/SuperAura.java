@@ -15,27 +15,37 @@ import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.Vec3d;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
 import java.util.Comparator;
+import java.util.Set;
 import java.util.stream.StreamSupport;
 
 public class SuperAura extends Module {
-
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private final SettingGroup sgAnarchy = settings.createGroup("Anarchy Config");
 
-    private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder().name("range").defaultValue(100.0).min(1.0).sliderMax(250.0).build());
-    private final Setting<Integer> hitDelay = sgGeneral.add(new IntSetting.Builder().name("hit-delay").defaultValue(5).min(0).sliderMax(40).build());
-    private final Setting<Double> blinkStep = sgGeneral.add(new DoubleSetting.Builder().name("blink-step").defaultValue(8.0).min(1.0).sliderMax(20.0).build());
-    private final Setting<Boolean> rotate = sgGeneral.add(new BoolSetting.Builder().name("rotate").defaultValue(true).build());
+
+    private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder().name("range").description("Alcance mÃ¡ximo (TP Reach).").defaultValue(100.0).min(1.0).sliderMax(250.0).build());
+    private final Setting<Integer> hitDelay = sgGeneral.add(new IntSetting.Builder().name("hit-delay").description("Ticks entre ataques (0 = Super RÃ¡pido).").defaultValue(2).min(0).sliderMax(20).build());
     private final Setting<Set<EntityType<?>>> entities = sgGeneral.add(new EntityTypeListSetting.Builder().name("entities").onlyAttackable().defaultValue(EntityType.PLAYER).build());
+    private final Setting<Boolean> rotate = sgGeneral.add(new BoolSetting.Builder().name("rotate").description("RotaciÃ³n forzada al objetivo.").defaultValue(true).build());
 
-    private Entity primaryTarget;
+    private final Setting<Double> tpStep = sgAnarchy.add(new DoubleSetting.Builder().name("tp-step").description("TamaÃ±o del salto de paquetes. MÃ¡s alto = mÃ¡s rÃ¡pido, mÃ¡s bajo = mejor bypass.").defaultValue(10.0).min(1.0).sliderMax(30.0).build());
+    private final Setting<Integer> packetsPerHit = sgAnarchy.add(new IntSetting.Builder().name("packets-per-hit").description("CuÃ¡ntos paquetes de ataque enviar por tick.").defaultValue(1).min(1).sliderMax(5).build());
+    private final Setting<Boolean> multiTarget = sgAnarchy.add(new BoolSetting.Builder().name("multi-target").description("Ataca a varios objetivos a la vez si estÃ¡n en rango.").defaultValue(false).build());
+    private final Setting<Boolean> forceOnGround = sgAnarchy.add(new BoolSetting.Builder().name("force-on-ground").description("Mantiene el estado 'en el suelo' para evitar kicks por Fly.").defaultValue(true).build());
+    private final Setting<Boolean> teleportBack = sgAnarchy.add(new BoolSetting.Builder().name("instant-return").description("Regresa instantÃ¡neamente (MÃ¡s rÃ¡pido, menos discreto).").defaultValue(true).build());
+    private final Setting<Boolean> attackInvisibles = sgAnarchy.add(new BoolSetting.Builder().name("attack-invisibles").defaultValue(true).build());
+    private final Setting<Boolean> ignoreWalls = sgAnarchy.add(new BoolSetting.Builder().name("ignore-walls").description("Ataca a travÃ©s de cualquier bloque.").defaultValue(true).build());
+    private final Setting<Boolean> tpsSync = sgAnarchy.add(new BoolSetting.Builder().name("tps-sync").description("Sincroniza el delay con los TPS del servidor.").defaultValue(true).build());
+    private final Setting<Boolean> critBypass = sgAnarchy.add(new BoolSetting.Builder().name("packet-crits").description("Intenta hacer crÃ­ticos mediante paquetes.").defaultValue(false).build());
+    private final Setting<Boolean> swing = sgAnarchy.add(new BoolSetting.Builder().name("show-swing").defaultValue(true).build());
+    private final Setting<Boolean> antiFriend = sgAnarchy.add(new BoolSetting.Builder().name("anti-friend").defaultValue(true).build());
+    private final Setting<Double> minHealth = sgAnarchy.add(new DoubleSetting.Builder().name("safety-health").description("Se apaga si tu vida es menor a esto.").defaultValue(0.0).min(0.0).sliderMax(20.0).build());
+
     private int timer;
 
     public SuperAura() {
-        super(AddonTemplate.CATEGORY, "xAura", "Infinite Reach KillAura.");
+        super(AddonTemplate.CATEGORY, "xAura", "Infinite Reach KillAura");
     }
 
     @Override
@@ -46,52 +56,88 @@ public class SuperAura extends Module {
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null || !mc.player.isAlive()) return;
-        if (timer > 0) { timer--; return; }
+        if (mc.player.getHealth() <= minHealth.get()) return;
 
-        // BUSQUEDA MANUAL (Esto ignora el límite de 6 bloques de TargetUtils)
-        primaryTarget = findTarget();
+        if (timer > 0) {
+            timer--;
+            return;
+        }
 
-        if (primaryTarget == null) return;
-
-        if (rotate.get()) {
-            Rotations.rotate(Rotations.getYaw(primaryTarget), Rotations.getPitch(primaryTarget), this::executeAura);
+        if (multiTarget.get()) {
+            // Logic of del rango no se hablar en ingles xd
+            StreamSupport.stream(mc.world.getEntities().spliterator(), false)
+                .filter(this::isValidTarget)
+                .forEach(this::attackProcess);
         } else {
-            executeAura();
+            // Objetivo
+            Entity target = findTarget();
+            if (target != null) attackProcess(target);
         }
-    }
-
-    private void executeAura() {
-        Vec3d startPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
-        Vec3d targetPos = new Vec3d(primaryTarget.getX(), primaryTarget.getY(), primaryTarget.getZ());
-        double distance = startPos.distanceTo(targetPos);
-
-        // Lógica de Teleport Bypass
-        double step = blinkStep.get();
-        int steps = (int) Math.ceil(distance / step);
-
-        // Ida
-        for (int i = 1; i <= steps; i++) {
-            Vec3d nextStep = startPos.lerp(targetPos, (double) i / steps);
-            mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(nextStep.x, nextStep.y, nextStep.z, true, false));
-        }
-
-        // Ataque
-        mc.interactionManager.attackEntity(mc.player, primaryTarget);
-        mc.player.swingHand(Hand.MAIN_HAND);
-
-        // Vuelta
-        mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(startPos.x, startPos.y, startPos.z, true, false));
 
         timer = hitDelay.get();
     }
 
-    private Entity findTarget() {
+    private void attackProcess(Entity target) {
+        if (rotate.get()) {
+            Rotations.rotate(Rotations.getYaw(target), Rotations.getPitch(target), () -> doInfiniteAttack(target));
+        } else {
+            doInfiniteAttack(target);
+        }
+    }
+
+    private void doInfiniteAttack(Entity target) {
+
+        Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        Vec3d destination = new Vec3d(target.getX(), target.getY(), target.getZ());
+
+        double distance = origin.distanceTo(destination);
+        if (distance > range.get()) return;
+
+        double step = tpStep.get();
+        int steps = (int) Math.ceil(distance / step);
+
+
+        for (int i = 1; i <= steps; i++) {
+            Vec3d next = origin.lerp(destination, (double) i / steps);
+            sendPos(next);
+        }
+
+
+        for (int i = 0; i < packetsPerHit.get(); i++) {
+            if (critBypass.get()) sendPos(new Vec3d(destination.x, destination.y + 0.05, destination.z));
+            mc.interactionManager.attackEntity(mc.player, target);
+        }
+
+        if (swing.get()) mc.player.swingHand(Hand.MAIN_HAND);
+
+        // VUELTA
+        if (teleportBack.get()) {
+            sendPos(origin);
+        } else {
+            for (int i = steps - 1; i >= 0; i--) {
+                Vec3d next = origin.lerp(destination, (double) i / steps);
+                sendPos(next);
+            }
+        }
+    }
+
+    private void sendPos(Vec3d pos) {
+        mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(pos.x, pos.y, pos.z, forceOnGround.get(), false));
+    }
+
+    private boolean isValidTarget(Entity e) {
         double rSq = range.get() * range.get();
+        if (!(e instanceof LivingEntity) || !e.isAlive() || e == mc.player) return false;
+        if (!entities.get().contains(e.getType())) return false;
+        if (mc.player.squaredDistanceTo(e) > rSq) return false;
+        if (!attackInvisibles.get() && e.isInvisible()) return false;
+        if (antiFriend.get() && e instanceof PlayerEntity && Friends.get().isFriend((PlayerEntity) e)) return false;
+        return true;
+    }
+
+    private Entity findTarget() {
         return StreamSupport.stream(mc.world.getEntities().spliterator(), false)
-            .filter(e -> e instanceof LivingEntity && e.isAlive() && e != mc.player)
-            .filter(e -> entities.get().contains(e.getType()))
-            .filter(e -> mc.player.squaredDistanceTo(e) <= rSq)
-            .filter(e -> !(e instanceof PlayerEntity) || !Friends.get().isFriend((PlayerEntity) e))
+            .filter(this::isValidTarget)
             .min(Comparator.comparingDouble(e -> mc.player.squaredDistanceTo(e)))
             .orElse(null);
     }
