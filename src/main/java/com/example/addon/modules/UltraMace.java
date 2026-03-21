@@ -53,84 +53,86 @@ public class UltraMace extends Module {
     }
 
     @EventHandler
-    private void onSendPacket(PacketEvent.Send event) {
-        if (mc.player == null || mc.getNetworkHandler() == null || isWorking) return;
-        if (event.packet instanceof IPlayerMoveC2SPacket move && move.meteor$getTag() == 1337) return;
+private void onSendPacket(PacketEvent.Send event) {
+    if (mc.player == null || mc.getNetworkHandler() == null || isWorking) return;
+    if (event.packet instanceof IPlayerMoveC2SPacket move && move.meteor$getTag() == 1337) return;
 
-        if (event.packet instanceof PlayerInteractEntityC2SPacket packet) {
-            IPlayerInteractEntityC2SPacket accessor = (IPlayerInteractEntityC2SPacket) packet;
-            if (!String.valueOf(accessor.meteor$getType()).contains("ATTACK")) return;
+    // Ignorar paquetes de ataque que vienen del xAura
+    if (SuperAura.isSendingAttack) return;
 
-            Entity entity = accessor.meteor$getEntity();
-            if (entity instanceof LivingEntity target) {
-                if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
+    if (event.packet instanceof PlayerInteractEntityC2SPacket packet) {
+        IPlayerInteractEntityC2SPacket accessor = (IPlayerInteractEntityC2SPacket) packet;
+        if (!String.valueOf(accessor.meteor$getType()).contains("ATTACK")) return;
 
-                event.cancel();
-                isWorking = true;
+        Entity entity = accessor.meteor$getEntity();
+        if (entity instanceof LivingEntity target) {
+            if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
 
-                int oldSlot = 0;
-                try {
-                    Field field = mc.player.getInventory().getClass().getDeclaredField("selectedSlot");
-                    field.setAccessible(true);
-                    oldSlot = (int) field.get(mc.player.getInventory());
-                } catch (Exception e) {
-                    oldSlot = 0;
-                }
+            event.cancel();
+            isWorking = true;
 
-                int maceSlot = -1;
-                for (int i = 0; i < 9; i++) {
-                    if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) {
-                        maceSlot = i;
-                    }
-                }
-
-                if (maceSlot != -1 || mc.player.getMainHandStack().isOf(Items.MACE)) {
-                    if (autoSwitch.get() && maceSlot != -1) {
-                        mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
-                    }
-
-                    double px = mc.player.getX();
-                    double py = mc.player.getY();
-                    double pz = mc.player.getZ();
-
-                    for (int a = 0; a < hitAmount.get(); a++) {
-                        applyHit(target, macePower.get(), px, py, pz);
-                        applyHit(target, hit1.get(), px, py, pz);
-                        applyHit(target, hit2.get(), px, py, pz);
-
-                        for (int i = 0; i < extraHitsAmount.get(); i++) {
-                            applyHit(target, extraHeights.get(i).get(), px, py, pz);
-                        }
-
-                        if (doTotemFail.get()) {
-                            for (int i = 0; i < noGroundPackets.get(); i++) {
-                                sendPos(px, py + (i * 0.0001), pz, false);
-                                mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
-                                sendPos(px, py, pz, false);
-                            }
-                        }
-                    }
-
-                    if (autoSwitch.get() && maceSlot != -1) {
-                        mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
-                    }
-                }
-
-                isWorking = false;
+            int oldSlot = 0;
+            try {
+                Field field = mc.player.getInventory().getClass().getDeclaredField("selectedSlot");
+                field.setAccessible(true);
+                oldSlot = (int) field.get(mc.player.getInventory());
+            } catch (Exception e) {
+                oldSlot = 0;
             }
+
+            int maceSlot = -1;
+            for (int i = 0; i < 9; i++) {
+                if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) {
+                    maceSlot = i;
+                }
+            }
+
+            if (maceSlot != -1 || mc.player.getMainHandStack().isOf(Items.MACE)) {
+                if (autoSwitch.get() && maceSlot != -1) {
+                    mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
+                }
+
+                double px = mc.player.getX();
+                double py = mc.player.getY();
+                double pz = mc.player.getZ();
+
+                for (int a = 0; a < hitAmount.get(); a++) {
+                    applyHit(target, macePower.get(), px, py, pz);
+                    applyHit(target, hit1.get(), px, py, pz);
+                    applyHit(target, hit2.get(), px, py, pz);
+
+                    for (int i = 0; i < extraHitsAmount.get(); i++) {
+                        applyHit(target, extraHeights.get(i).get(), px, py, pz);
+                    }
+
+                    if (doTotemFail.get()) {
+                        for (int i = 0; i < noGroundPackets.get(); i++) {
+                            sendPos(px, py + (i * 0.0001), pz, false);
+                            mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
+                            sendPos(px, py, pz, false);
+                        }
+                    }
+                }
+
+                if (autoSwitch.get() && maceSlot != -1) {
+                    mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
+                }
+            }
+
+            isWorking = false;
         }
     }
+}
 
-    private void applyHit(Entity target, int height, double x, double y, double z) {
-        sendPos(x, y + height, z, false);
-        sendPos(x, y, z, false); 
-        mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
-        sendPos(x, y, z, false);
-    }
+private void applyHit(Entity target, int height, double x, double y, double z) {
+    sendPos(x, y + height, z, false);
+    sendPos(x, y, z, false);
+    mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
+    sendPos(x, y, z, false);
+}
 
-    private void sendPos(double x, double y, double z, boolean onGround) {
-        PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, onGround, mc.player.horizontalCollision);
-        ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
-        mc.getNetworkHandler().sendPacket(p);
-    }
-                             }
+private void sendPos(double x, double y, double z, boolean onGround) {
+    PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, onGround, mc.player.horizontalCollision);
+    ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
+    mc.getNetworkHandler().sendPacket(p);
+}
