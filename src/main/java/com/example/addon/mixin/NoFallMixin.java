@@ -1,3 +1,4 @@
+NoFallMixin.java corregido:
 package com.example.addon.mixin;
 
 import com.example.addon.modules.TotemGuard;
@@ -21,11 +22,11 @@ public class NoFallMixin {
                                    DamageSource source, CallbackInfoReturnable<Boolean> cir) {
         LivingEntity self = (LivingEntity)(Object) this;
 
-        if (self.getWorld().isClient
+        if (self.getWorld().isClient()          // ← isClient() con paréntesis
          && self == meteordevelopment.meteorclient.MeteorClient.mc.player
          && Modules.get().isActive(TotemGuard.class)) {
             cir.setReturnValue(false);
             cir.cancel();
         }
     }
-      }
+}
