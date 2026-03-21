@@ -9,7 +9,6 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class xRPC extends Module {
 
@@ -43,7 +42,7 @@ public class xRPC extends Module {
     private int index1;
     private int index2;
     private long startTime;
-    private final AtomicBoolean ipcStarted = new AtomicBoolean(false);
+    private boolean ipcStarted = false;
 
     public xRPC() {
         super(AddonTemplate.CATEGORY, "xRPC", "Discord Rich Presence for xA.");
@@ -56,34 +55,29 @@ public class xRPC extends Module {
         index1    = 0;
         index2    = 0;
         startTime = System.currentTimeMillis() / 1000L;
-        startIPC();
+
+        try {
+            DiscordIPC.start(1483491540784644377L, null);
+            ipcStarted = true;
+            presence.setStart(startTime);
+            updateRPC();
+        } catch (Exception e) {
+            ipcStarted = false;
+        }
     }
 
     @Override
     public void onDeactivate() {
-        if (ipcStarted.get()) {
+        if (ipcStarted) {
             try { DiscordIPC.stop(); } catch (Exception ignored) {}
-            ipcStarted.set(false);
-        }
-    }
-
-    private void startIPC() {
-        try {
-            DiscordIPC.start(1483491540784644377L, null);
-            ipcStarted.set(true);
-            presence.setStart(startTime);
-            updateRPC();
-        } catch (Exception e) {
-            ipcStarted.set(false);
+            ipcStarted = false;
         }
     }
 
     private String getServerName() {
-        // En un servidor online devuelve la IP, en singleplayer devuelve null
         if (mc.getCurrentServerEntry() != null) {
             return mc.getCurrentServerEntry().address;
         }
-        // Singleplayer / Realm
         if (mc.isIntegratedServerRunning()) {
             return "Singleplayer";
         }
@@ -92,10 +86,7 @@ public class xRPC extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        try { DiscordIPC.stop(); } catch (Exception ignored) {}
-        startIPC();
-
-        if (!ipcStarted.get()) return;
+        if (!ipcStarted) return;
 
         ticks++;
         if (ticks >= delay.get()) {
@@ -115,17 +106,11 @@ public class xRPC extends Module {
         index1 = (index1 + 1) % l1.size();
         index2 = (index2 + 1) % l2.size();
 
-        presence.setDetails(details);
-        presence.setState(state);
-
-        // Muestra el servidor debajo del estado
         String server = getServerName();
-        if (server != null) {
-            presence.setSmallImage("25565", "Jugando en: " + server);
-        } else {
-            presence.setSmallImage(null, null); // Menú principal, sin servidor
-        }
 
+        presence.setDetails(details);
+        // Añade el servidor al estado si está disponible
+        presence.setState(server != null ? state + " | " + server : state);
         presence.setLargeImage("25565", "xA Addon");
         DiscordIPC.setActivity(presence);
     }
