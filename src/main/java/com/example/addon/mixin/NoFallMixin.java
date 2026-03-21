@@ -21,7 +21,7 @@ public class NoFallMixin {
                                    DamageSource source, CallbackInfoReturnable<Boolean> cir) {
         LivingEntity self = (LivingEntity)(Object) this;
 
-        if (self.getWorld().isClient()          // ← isClient() con paréntesis
+        if (self.getEntityWorld().isClient
          && self == meteordevelopment.meteorclient.MeteorClient.mc.player
          && Modules.get().isActive(TotemGuard.class)) {
             cir.setReturnValue(false);
