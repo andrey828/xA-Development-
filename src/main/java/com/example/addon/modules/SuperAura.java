@@ -13,9 +13,12 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
+import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
@@ -102,20 +105,23 @@ public class SuperAura extends Module {
         if (timer > 0) { timer--; return; }
 
         if (multiTarget.get()) {
-            StreamSupport.stream(mc.world.getEntities().spliterator(), false)
+            List<Entity> targets = StreamSupport.stream(mc.world.getEntities().spliterator(), false)
                 .filter(this::isValidTarget)
-                .forEach(this::attackProcess);
+                .toList();
+
+            if (targets.isEmpty()) return;
+
+            targets.forEach(this::attackProcess);
         } else {
             Entity target = findTarget();
-            if (target != null) attackProcess(target);
+
+            if (target == null) return;
+
+            attackProcess(target);
         }
 
-        // tpsSync: ajusta el delay según los TPS actuales del servidor
         if (tpsSync.get()) {
-            double tps = Math.min(20.0, mc.getNetworkHandler() != null ? 20.0 : 20.0);
-            // Factor de corrección: si el servidor va lento, reducimos el timer
-            double tpsFactor = tps / 20.0;
-            timer = (int) Math.round(hitDelay.get() * tpsFactor);
+            timer = hitDelay.get();
         } else {
             timer = hitDelay.get();
         }
@@ -131,13 +137,13 @@ public class SuperAura extends Module {
     }
 
     private void doInfiniteAttack(Entity target) {
-        Vec3d origin = mc.player.getPos();
-        Vec3d destination = target.getPos();
+        // FIX: usar new Vec3d con las coordenadas directamente
+        Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        Vec3d destination = new Vec3d(target.getX(), target.getY(), target.getZ());
 
         double distance = origin.distanceTo(destination);
 
-        // Usa el range configurado — sin re-check redundante
-        double step = Math.min(tpStep.get(), distance); // evita overshoot si step > distance
+        double step = Math.min(tpStep.get(), distance);
         int steps = (step <= 0) ? 1 : (int) Math.ceil(distance / step);
 
         // Viaje hacia el objetivo
@@ -146,14 +152,15 @@ public class SuperAura extends Module {
             sendPos(next);
         }
 
-        // Crits por paquete (micro-salto antes de atacar)
+        // Crits por paquete
         if (critBypass.get()) {
             sendPos(new Vec3d(destination.x, destination.y + 0.11, destination.z));
             sendPos(new Vec3d(destination.x, destination.y + 0.1001, destination.z));
         }
 
-        // Ataque (múltiples paquetes si se configura)
+        // Ataque sin daño local
         for (int i = 0; i < packetsPerHit.get(); i++) {
+            mc.player.resetLastAttackedTicks();
             mc.interactionManager.attackEntity(mc.player, target);
         }
 
@@ -181,7 +188,7 @@ public class SuperAura extends Module {
     }
 
     private boolean isValidTarget(Entity e) {
-        if (!(e instanceof LivingEntity living) || !e.isAlive() || e == mc.player) return false;
+        if (!(e instanceof LivingEntity) || !e.isAlive() || e == mc.player) return false;
         if (!entities.get().contains(e.getType())) return false;
 
         double distSq = mc.player.squaredDistanceTo(e);
@@ -191,16 +198,21 @@ public class SuperAura extends Module {
         if (!attackInvisibles.get() && e.isInvisible()) return false;
         if (antiFriend.get() && e instanceof PlayerEntity pe && Friends.get().isFriend(pe)) return false;
 
-        // ignoreWalls: si está desactivado, comprueba línea de visión
+        // FIX: raycast correcto para esta versión de la API
         if (!ignoreWalls.get() && mc.world != null) {
-            if (!mc.world.isDirectSkyVisible(e.getBlockPos())) {
-                // Raycast simple entre jugador y objetivo
-                var raycast = mc.world.raycastBlock(
-                    mc.player.getEyePos(), e.getEyePos(),
-                    net.minecraft.block.ShapeContext.absent()
-                );
-                if (raycast != null) return false;
-            }
+            Vec3d eyePos = new Vec3d(mc.player.getX(), mc.player.getEyeY(), mc.player.getZ());
+            Vec3d targetEye = new Vec3d(e.getX(), e.getEyeY(), e.getZ());
+
+            BlockHitResult result = mc.world.raycast(new RaycastContext(
+                eyePos,
+                targetEye,
+                RaycastContext.ShapeType.COLLIDER,
+                RaycastContext.FluidHandling.NONE,
+                mc.player
+            ));
+
+            // Si el raycast choca con un bloque antes de llegar al objetivo, hay pared
+            if (result.getType() == net.minecraft.util.hit.HitResult.Type.BLOCK) return false;
         }
 
         return true;
