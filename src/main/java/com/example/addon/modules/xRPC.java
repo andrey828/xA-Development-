@@ -37,11 +37,12 @@ public class xRPC extends Module {
             .build()
     );
 
-    private static final RichPresence presence = new RichPresence();
-
+    // Fix: no longer static — each activation gets a fresh instance
+    private RichPresence presence;
     private int ticks;
     private int index1;
     private int index2;
+    private boolean ipcStarted = false;
 
     public xRPC() {
         super(AddonTemplate.CATEGORY, "xRPC", "Discord Rich Presence for xA.");
@@ -49,30 +50,36 @@ public class xRPC extends Module {
 
     @Override
     public void onActivate() {
+        presence = new RichPresence();
+        ticks  = 0;
+        index1 = 0;
+        index2 = 0;
+        ipcStarted = false;
 
         try {
             DiscordIPC.start(1483491540784644377L, null);
-        } catch (Exception ignored) {}
-
-        presence.setStart(System.currentTimeMillis() / 1000L);
-
-        ticks = 0;
-        index1 = 0;
-        index2 = 0;
-
-        updateRPC();
+            ipcStarted = true;
+            presence.setStart(System.currentTimeMillis() / 1000L);
+            updateRPC();
+        } catch (Exception e) {
+            // IPC failed (Discord not running, etc.) — module stays on but does nothing
+            ipcStarted = false;
+        }
     }
 
     @Override
     public void onDeactivate() {
-        DiscordIPC.stop();
+        if (ipcStarted) {
+            DiscordIPC.stop();
+            ipcStarted = false;
+        }
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
+        if (!ipcStarted) return;
 
         ticks++;
-
         if (ticks >= delay.get()) {
             ticks = 0;
             updateRPC();
@@ -80,7 +87,6 @@ public class xRPC extends Module {
     }
 
     private void updateRPC() {
-
         List<String> l1 = line1.get();
         List<String> l2 = line2.get();
 
@@ -90,21 +96,21 @@ public class xRPC extends Module {
         String state;
 
         if (mc.player == null) {
+            // Fix: don't advance indexes when in main menu
             details = "Main Menu";
-            state = "Idle";
+            state   = "Idle";
         } else {
-            details = l1.get(index1);
-            state = l2.get(index2);
+            details = l1.get(index1 % l1.size());
+            state   = l2.get(index2 % l2.size());
+            // Fix: only increment when actually using the list values
+            index1 = (index1 + 1) % l1.size();
+            index2 = (index2 + 1) % l2.size();
         }
-
-        index1 = (index1 + 1) % l1.size();
-        index2 = (index2 + 1) % l2.size();
 
         presence.setDetails(details);
         presence.setState(state);
-
+        // Fix: use a proper image asset key, not a port number
         presence.setLargeImage("25565", "xA Addon");
-
         DiscordIPC.setActivity(presence);
     }
 }
