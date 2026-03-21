@@ -120,11 +120,7 @@ public class SuperAura extends Module {
             attackProcess(target);
         }
 
-        if (tpsSync.get()) {
-            timer = hitDelay.get();
-        } else {
-            timer = hitDelay.get();
-        }
+        timer = hitDelay.get();
     }
 
     private void attackProcess(Entity target) {
@@ -137,7 +133,6 @@ public class SuperAura extends Module {
     }
 
     private void doInfiniteAttack(Entity target) {
-        // FIX: usar new Vec3d con las coordenadas directamente
         Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         Vec3d destination = new Vec3d(target.getX(), target.getY(), target.getZ());
 
@@ -158,9 +153,9 @@ public class SuperAura extends Module {
             sendPos(new Vec3d(destination.x, destination.y + 0.1001, destination.z));
         }
 
-        // Ataque sin daño local
+        // Ataque sin daño local — acceso directo al campo mapeado
         for (int i = 0; i < packetsPerHit.get(); i++) {
-            mc.player.resetLastAttackedTicks();
+            mc.player.lastAttackedTicks = 0;
             mc.interactionManager.attackEntity(mc.player, target);
         }
 
@@ -198,7 +193,6 @@ public class SuperAura extends Module {
         if (!attackInvisibles.get() && e.isInvisible()) return false;
         if (antiFriend.get() && e instanceof PlayerEntity pe && Friends.get().isFriend(pe)) return false;
 
-        // FIX: raycast correcto para esta versión de la API
         if (!ignoreWalls.get() && mc.world != null) {
             Vec3d eyePos = new Vec3d(mc.player.getX(), mc.player.getEyeY(), mc.player.getZ());
             Vec3d targetEye = new Vec3d(e.getX(), e.getEyeY(), e.getZ());
@@ -211,7 +205,6 @@ public class SuperAura extends Module {
                 mc.player
             ));
 
-            // Si el raycast choca con un bloque antes de llegar al objetivo, hay pared
             if (result.getType() == net.minecraft.util.hit.HitResult.Type.BLOCK) return false;
         }
 
