@@ -3,7 +3,8 @@
   "package": "com.example.addon.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "PlayerMoveC2SPacketAccessor"
+    "NoFallMixin",
+    "accessor.PlayerMoveC2SPacketAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
