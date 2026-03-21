@@ -10,7 +10,7 @@ import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 public class TotemGuard extends Module {
 
     public TotemGuard() {
-        super(AddonTemplate.CATEGORY, "xTotem", "Cancels all fall damage, even with fly.");
+        super(AddonTemplate.CATEGORY, "xNoPoP", "Cancels all fall damage, even with fly.");
     }
 
     @EventHandler
