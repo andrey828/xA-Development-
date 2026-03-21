@@ -95,17 +95,10 @@ public class xRPC extends Module {
         String details;
         String state;
 
-        if (mc.player == null) {
-            // Fix: don't advance indexes when in main menu
-            details = "Main Menu";
-            state   = "Idle";
-        } else {
-            details = l1.get(index1 % l1.size());
-            state   = l2.get(index2 % l2.size());
-            // Fix: only increment when actually using the list values
-            index1 = (index1 + 1) % l1.size();
-            index2 = (index2 + 1) % l2.size();
-        }
+        details = l1.get(index1 % l1.size());
+        state   = l2.get(index2 % l2.size());
+        index1  = (index1 + 1) % l1.size();
+        index2  = (index2 + 1) % l2.size();
 
         presence.setDetails(details);
         presence.setState(state);
