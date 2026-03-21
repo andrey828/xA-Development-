@@ -7,15 +7,12 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 
-public class TotemGuarld extends Module {
+public class TotemGuard extends Module {
 
-    public TotemGuarld() {
+    public TotemGuard() {
         super(AddonTemplate.CATEGORY, "xTotem", "Cancels all fall damage, even with fly.");
     }
 
-     //papoi el q lo lea 
-    //q miras aki ? 
-    
     @EventHandler
     public void onSendPacket(PacketEvent.Send event) {
         if (mc.player == null) return;
