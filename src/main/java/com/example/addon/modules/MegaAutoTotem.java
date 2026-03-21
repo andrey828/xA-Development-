@@ -8,15 +8,20 @@ import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
+import net.minecraft.item.Item;
 import net.minecraft.item.Items;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.util.Hand;
+
+import java.util.List;
 
 public class MegaAutoTotem extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgSmart   = settings.createGroup("Smart Logic");
     private final SettingGroup sgDouble  = settings.createGroup("Double Hand");
     private final SettingGroup sgHotbar  = settings.createGroup("Hotbar Fill");
+    private final SettingGroup sgFilter  = settings.createGroup("Item Filter");
 
     // --- GENERAL ---
     private final Setting<Boolean> strictMode = sgGeneral.add(new BoolSetting.Builder()
@@ -54,15 +59,20 @@ public class MegaAutoTotem extends Module {
     );
 
     // --- DOUBLE HAND ---
+    // Pone tótem tanto en offhand como en mainhand simultáneamente
     private final Setting<Boolean> doubleHand = sgDouble.add(new BoolSetting.Builder()
         .name("double-totem")
+        .description("Pone tótem en AMBAS manos (offhand y mainhand).")
         .defaultValue(false)
         .build()
     );
 
     private final Setting<Double> criticalHealth = sgDouble.add(new DoubleSetting.Builder()
         .name("critical-health")
+        .description("Vida a la que se activa el doble tótem.")
         .defaultValue(6)
+        .min(0)
+        .sliderMax(36)
         .visible(() -> doubleHand.get() && !strictMode.get())
         .build()
     );
@@ -85,6 +95,14 @@ public class MegaAutoTotem extends Module {
         .build()
     );
 
+    // --- ITEM FILTER ---
+    private final Setting<List<Item>> ignoredItems = sgFilter.add(new ItemListSetting.Builder()
+        .name("ignored-items")
+        .description("Items que NO serán reemplazados por tótems en la hotbar.")
+        .defaultValue()
+        .build()
+    );
+
     private double lastHealth = 20;
     private int timer = 0;
 
@@ -102,7 +120,7 @@ public class MegaAutoTotem extends Module {
         // --- MODO STRICT ---
         if (strictMode.get()) {
             equipOffhand();
-            if (doubleHand.get()) equipMainhand();
+            if (doubleHand.get()) equipMainHand();
             if (hotbarFill.get()) fillHotbar();
             return;
         }
@@ -119,13 +137,15 @@ public class MegaAutoTotem extends Module {
 
         boolean acted = false;
 
+        // Offhand — siempre que la vida baje del umbral
         if (currentHealth <= threshold && mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult fresh = InvUtils.find(Items.TOTEM_OF_UNDYING);
             if (fresh.found()) { InvUtils.move().from(fresh.slot()).toOffhand(); acted = true; }
         }
 
+        // Mainhand — solo cuando la vida baja del umbral crítico
         if (doubleHand.get() && currentHealth <= criticalHealth.get()) {
-            acted |= equipMainhand();
+            acted |= equipMainHand();
         }
 
         if (hotbarFill.get()) fillHotbar();
@@ -136,7 +156,7 @@ public class MegaAutoTotem extends Module {
     }
 
     // ---------------------------------------------------------------
-    // Equipa offhand si no tiene ya un tótem
+    // Offhand: mueve tótem al slot 45 (offhand slot de Minecraft)
     // ---------------------------------------------------------------
     private void equipOffhand() {
         if (mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
@@ -145,32 +165,42 @@ public class MegaAutoTotem extends Module {
     }
 
     // ---------------------------------------------------------------
-    // Mueve un tótem al primer slot libre de la hotbar.
-    // Fuente: inventario principal (slots 9-35) para no ciclar.
+    // Mainhand: usa InvUtils.swap() para poner tótem en la mano
+    // activa directamente, sin tocar selectedSlot.
+    // Busca fuente en inventario principal (9-35) para no ciclar.
     // ---------------------------------------------------------------
-    private boolean equipMainhand() {
+    private boolean equipMainHand() {
+        if (mc.player.getMainHandStack().getItem() == Items.TOTEM_OF_UNDYING) return false;
+
+        // Prioridad: buscar tótem en inventario principal
         FindItemResult source = InvUtils.find(
             stack -> stack.getItem() == Items.TOTEM_OF_UNDYING,
             9, 35
         );
-        if (!source.found()) return false;
 
-        for (int i = 0; i < 9; i++) {
-            if (mc.player.getInventory().getStack(i).getItem() != Items.TOTEM_OF_UNDYING) {
-                InvUtils.move().from(source.slot()).to(i);
-                return true;
-            }
+        // Si no hay en el inventario, buscar en la hotbar (excluyendo slot activo)
+        if (!source.found()) {
+            source = InvUtils.find(Items.TOTEM_OF_UNDYING, 0, 8);
+            // Verificar que no es el mismo stack que la mainhand para no hacer nada inútil
+            if (!source.found()) return false;
+            if (mc.player.getInventory().getStack(source.slot()) == mc.player.getMainHandStack()) return false;
         }
-        return false;
+
+        // swap() mueve el item del slot al hand indicado (Hand.MAIN_HAND = mano activa)
+        InvUtils.swap(source.slot(), Hand.MAIN_HAND);
+        return true;
     }
 
     // ---------------------------------------------------------------
-    // Rellena los primeros N slots de la hotbar con tótems
+    // Rellena los primeros N slots de la hotbar con tótems,
+    // respetando los items ignorados.
     // ---------------------------------------------------------------
     private void fillHotbar() {
         int count = hotbarSlots.get();
         for (int i = 0; i < count; i++) {
-            if (mc.player.getInventory().getStack(i).getItem() == Items.TOTEM_OF_UNDYING) continue;
+            Item slotItem = mc.player.getInventory().getStack(i).getItem();
+            if (slotItem == Items.TOTEM_OF_UNDYING) continue;
+            if (isIgnored(slotItem)) continue;
 
             FindItemResult source = InvUtils.find(
                 stack -> stack.getItem() == Items.TOTEM_OF_UNDYING,
@@ -179,6 +209,14 @@ public class MegaAutoTotem extends Module {
             if (!source.found()) break;
             InvUtils.move().from(source.slot()).to(i);
         }
+    }
+
+    // ---------------------------------------------------------------
+    // Comprueba si un item está en la lista de ignorados
+    // ---------------------------------------------------------------
+    private boolean isIgnored(Item item) {
+        if (item == Items.AIR) return false;
+        return ignoredItems.get().contains(item);
     }
 
     // ---------------------------------------------------------------
