@@ -16,8 +16,8 @@ import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
-import net.minecraft.util.math.Vec3d;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -70,11 +70,15 @@ public class UltraMace extends Module {
                 event.cancel();
                 isWorking = true;
 
-                final double px = mc.player.getX();
-                final double py = mc.player.getY();
-                final double pz = mc.player.getZ();
+                int oldSlot = 0;
+                try {
+                    Field field = mc.player.getInventory().getClass().getDeclaredField("selectedSlot");
+                    field.setAccessible(true);
+                    oldSlot = (int) field.get(mc.player.getInventory());
+                } catch (Exception e) {
+                    oldSlot = 0;
+                }
 
-                int oldSlot = mc.player.getInventory().selectedSlot;
                 int maceSlot = -1;
                 for (int i = 0; i < 9; i++) {
                     if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) {
@@ -88,15 +92,17 @@ public class UltraMace extends Module {
                         mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
                     }
 
-                    // Verificar si xAura está activo para usarlo como tp
+                    final double px = mc.player.getX();
+                    final double py = mc.player.getY();
+                    final double pz = mc.player.getZ();
+
+                    // Si xAura está activo, él maneja el tp
                     SuperAura aura = Modules.get().get(SuperAura.class);
                     boolean auraActive = aura != null && aura.isActive();
 
                     if (auraActive) {
-                        // xAura teletransporta → xMace pega → xAura vuelve
                         aura.teleportToAndBack(target, () -> executeHits(target, px, py, pz));
                     } else {
-                        // Sin xAura, comportamiento normal
                         sendPos(px, py, pz, true);
                         executeHits(target, px, py, pz);
                         sendPos(px, py, pz, true);
