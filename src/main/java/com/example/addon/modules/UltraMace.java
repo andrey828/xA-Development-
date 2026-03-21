@@ -7,6 +7,7 @@ import meteordevelopment.meteorclient.mixininterface.IPlayerMoveC2SPacket;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -15,8 +16,8 @@ import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
+import net.minecraft.util.math.Vec3d;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -56,8 +57,6 @@ public class UltraMace extends Module {
     private void onSendPacket(PacketEvent.Send event) {
         if (mc.player == null || mc.getNetworkHandler() == null || isWorking) return;
         if (event.packet instanceof IPlayerMoveC2SPacket move && move.meteor$getTag() == 1337) return;
-
-        // Ignorar paquetes de ataque que vienen del xAura
         if (SuperAura.isSendingAttack) return;
 
         if (event.packet instanceof PlayerInteractEntityC2SPacket packet) {
@@ -71,19 +70,16 @@ public class UltraMace extends Module {
                 event.cancel();
                 isWorking = true;
 
-                int oldSlot = 0;
-                try {
-                    Field field = mc.player.getInventory().getClass().getDeclaredField("selectedSlot");
-                    field.setAccessible(true);
-                    oldSlot = (int) field.get(mc.player.getInventory());
-                } catch (Exception e) {
-                    oldSlot = 0;
-                }
+                final double px = mc.player.getX();
+                final double py = mc.player.getY();
+                final double pz = mc.player.getZ();
 
+                int oldSlot = mc.player.getInventory().selectedSlot;
                 int maceSlot = -1;
                 for (int i = 0; i < 9; i++) {
                     if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) {
                         maceSlot = i;
+                        break;
                     }
                 }
 
@@ -92,26 +88,18 @@ public class UltraMace extends Module {
                         mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
                     }
 
-                    double px = mc.player.getX();
-                    double py = mc.player.getY();
-                    double pz = mc.player.getZ();
+                    // Verificar si xAura está activo para usarlo como tp
+                    SuperAura aura = Modules.get().get(SuperAura.class);
+                    boolean auraActive = aura != null && aura.isActive();
 
-                    for (int a = 0; a < hitAmount.get(); a++) {
-                        applyHit(target, macePower.get(), px, py, pz);
-                        applyHit(target, hit1.get(), px, py, pz);
-                        applyHit(target, hit2.get(), px, py, pz);
-
-                        for (int i = 0; i < extraHitsAmount.get(); i++) {
-                            applyHit(target, extraHeights.get(i).get(), px, py, pz);
-                        }
-
-                        if (doTotemFail.get()) {
-                            for (int i = 0; i < noGroundPackets.get(); i++) {
-                                sendPos(px, py + (i * 0.0001), pz, false);
-                                mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
-                                sendPos(px, py, pz, false);
-                            }
-                        }
+                    if (auraActive) {
+                        // xAura teletransporta → xMace pega → xAura vuelve
+                        aura.teleportToAndBack(target, () -> executeHits(target, px, py, pz));
+                    } else {
+                        // Sin xAura, comportamiento normal
+                        sendPos(px, py, pz, true);
+                        executeHits(target, px, py, pz);
+                        sendPos(px, py, pz, true);
                     }
 
                     if (autoSwitch.get() && maceSlot != -1) {
@@ -124,15 +112,42 @@ public class UltraMace extends Module {
         }
     }
 
+    private void executeHits(Entity target, double px, double py, double pz) {
+        for (int a = 0; a < hitAmount.get(); a++) {
+            applyHit(target, macePower.get(), px, py, pz);
+            applyHit(target, hit1.get(), px, py, pz);
+            applyHit(target, hit2.get(), px, py, pz);
+
+            for (int i = 0; i < extraHitsAmount.get(); i++) {
+                applyHit(target, extraHeights.get(i).get(), px, py, pz);
+            }
+
+            if (doTotemFail.get()) {
+                for (int i = 0; i < noGroundPackets.get(); i++) {
+                    sendPos(px, py + (i * 0.0001), pz, false);
+                    mc.getNetworkHandler().sendPacket(
+                        PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking())
+                    );
+                    sendPos(px, py, pz, true);
+                }
+            }
+        }
+    }
+
     private void applyHit(Entity target, int height, double x, double y, double z) {
         sendPos(x, y + height, z, false);
+        sendPos(x, y + (height / 2.0), z, false);
         sendPos(x, y, z, false);
-        mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
-        sendPos(x, y, z, false);
+        mc.getNetworkHandler().sendPacket(
+            PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking())
+        );
+        sendPos(x, y, z, true);
     }
 
     private void sendPos(double x, double y, double z, boolean onGround) {
-        PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, onGround, mc.player.horizontalCollision);
+        PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(
+            x, y, z, onGround, mc.player.horizontalCollision
+        );
         ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
         mc.getNetworkHandler().sendPacket(p);
     }
