@@ -3,115 +3,294 @@ package com.example.addon.modules;
 import com.example.addon.AddonTemplate;
 import meteordevelopment.discordipc.DiscordIPC;
 import meteordevelopment.discordipc.RichPresence;
+import meteordevelopment.meteorclient.events.game.OpenScreenEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.gui.GuiTheme;
+import meteordevelopment.meteorclient.gui.WidgetScreen;
+import meteordevelopment.meteorclient.gui.utils.StarscriptTextBoxRenderer;
+import meteordevelopment.meteorclient.gui.widgets.WWidget;
+import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.systems.modules.misc.DiscordPresence;
+import meteordevelopment.meteorclient.utils.Utils;
+import meteordevelopment.meteorclient.utils.misc.MeteorStarscript;
 import meteordevelopment.orbit.EventHandler;
+import meteordevelopment.starscript.Script;
+import net.minecraft.client.gui.screen.*;
+import net.minecraft.client.gui.screen.multiplayer.AddServerScreen;
+import net.minecraft.client.gui.screen.multiplayer.ConnectScreen;
+import net.minecraft.client.gui.screen.multiplayer.MultiplayerScreen;
+import net.minecraft.client.gui.screen.option.*;
+import net.minecraft.client.gui.screen.world.CreateWorldScreen;
+import net.minecraft.client.gui.screen.world.EditWorldScreen;
+import net.minecraft.client.gui.screen.world.SelectWorldScreen;
+import net.minecraft.client.realms.gui.screen.RealmsMainScreen;
+import net.minecraft.util.Util;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 public class xRPC extends Module {
 
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    private final Setting<List<String>> line1 = sgGeneral.add(
+    private final Setting<List<String>> line1Strings = sgGeneral.add(
         new StringListSetting.Builder()
-            .name("line-1")
+            .name("line-1-messages")
+            .description("Messages used for the first line.")
             .defaultValue(List.of("xA Addon on top", "xA Development"))
+            .onChanged(s -> recompileLine1())
+            .renderer(StarscriptTextBoxRenderer.class)
             .build()
     );
 
-    private final Setting<List<String>> line2 = sgGeneral.add(
-        new StringListSetting.Builder()
-            .name("line-2")
-            .defaultValue(List.of("Using xA modules", "Best Addon"))
-            .build()
-    );
-
-    private final Setting<Integer> delay = sgGeneral.add(
+    private final Setting<Integer> line1UpdateDelay = sgGeneral.add(
         new IntSetting.Builder()
-            .name("refresh-delay")
-            .defaultValue(100)
-            .min(20)
-            .sliderMax(400)
+            .name("line-1-update-delay")
+            .description("How fast to update the first line in ticks.")
+            .defaultValue(60)
+            .min(10)
+            .sliderRange(10, 200)
             .build()
     );
 
-    private RichPresence presence;
+    private final Setting<DiscordPresence.SelectMode> line1SelectMode = sgGeneral.add(
+        new EnumSetting.Builder<DiscordPresence.SelectMode>()
+            .name("line-1-select-mode")
+            .description("How to select messages for the first line.")
+            .defaultValue(DiscordPresence.SelectMode.Sequential)
+            .build()
+    );
+
+    private final Setting<List<String>> line2Strings = sgGeneral.add(
+        new StringListSetting.Builder()
+            .name("line-2-messages")
+            .description("Messages used for the second line.")
+            .defaultValue(List.of("Using xA modules", "Best Addon"))
+            .onChanged(s -> recompileLine2())
+            .renderer(StarscriptTextBoxRenderer.class)
+            .build()
+    );
+
+    private final Setting<Integer> line2UpdateDelay = sgGeneral.add(
+        new IntSetting.Builder()
+            .name("line-2-update-delay")
+            .description("How fast to update the second line in ticks.")
+            .defaultValue(60)
+            .min(10)
+            .sliderRange(10, 200)
+            .build()
+    );
+
+    private final Setting<DiscordPresence.SelectMode> line2SelectMode = sgGeneral.add(
+        new EnumSetting.Builder<DiscordPresence.SelectMode>()
+            .name("line-2-select-mode")
+            .description("How to select messages for the second line.")
+            .defaultValue(DiscordPresence.SelectMode.Sequential)
+            .build()
+    );
+
+    private static final RichPresence rpc = new RichPresence();
+
+    private SmallImage currentSmallImage;
     private int ticks;
-    private int index1;
-    private int index2;
-    private long startTime;
-    private boolean ipcStarted = false;
+    private boolean forceUpdate;
+    private boolean lastWasInMainMenu;
+
+    private final List<Script> line1Scripts = new ArrayList<>();
+    private int line1Ticks;
+    private int line1I;
+
+    private final List<Script> line2Scripts = new ArrayList<>();
+    private int line2Ticks;
+    private int line2I;
+
+    public boolean update;
 
     public xRPC() {
         super(AddonTemplate.CATEGORY, "xRPC", "Discord Rich Presence for xA.");
+        runInMainMenu = true;
     }
 
     @Override
     public void onActivate() {
-        presence  = new RichPresence();
-        ticks     = 0;
-        index1    = 0;
-        index2    = 0;
-        startTime = System.currentTimeMillis() / 1000L;
-
-        try {
-            DiscordIPC.start(1483491540784644377L, null);
-            ipcStarted = true;
-            presence.setStart(startTime);
-            updateRPC();
-        } catch (Exception e) {
-            ipcStarted = false;
-        }
+        DiscordIPC.start(1483491540784644377L, null);
+        rpc.setStart(System.currentTimeMillis() / 1000L);
+        rpc.setLargeImage("25565", "xA Addon");
+        currentSmallImage = SmallImage.Logo;
+        recompileLine1();
+        recompileLine2();
+        ticks = 0;
+        line1Ticks = 0;
+        line2Ticks = 0;
+        lastWasInMainMenu = false;
+        line1I = 0;
+        line2I = 0;
     }
 
     @Override
     public void onDeactivate() {
-        if (ipcStarted) {
-            try { DiscordIPC.stop(); } catch (Exception ignored) {}
-            ipcStarted = false;
-        }
-    }
-
-    private String getServerName() {
-        if (mc.getCurrentServerEntry() != null) {
-            return mc.getCurrentServerEntry().address;
-        }
-        if (mc.isIntegratedServerRunning()) {
-            return "Singleplayer";
-        }
-        return null;
+        DiscordIPC.stop();
     }
 
     @EventHandler
-    private void onTick(TickEvent.Pre event) {
-        if (!ipcStarted) return;
+    private void onTick(TickEvent.Post event) {
+        update = false;
 
-        ticks++;
-        if (ticks >= delay.get()) {
+        // Rota small image cada 200 ticks
+        if (ticks < 200 && !forceUpdate) {
+            ticks++;
+        } else {
+            currentSmallImage = currentSmallImage.next();
+            currentSmallImage.apply();
+            update = true;
             ticks = 0;
-            updateRPC();
+        }
+
+        if (Utils.canUpdate()) {
+            handleLines();
+        } else if (!lastWasInMainMenu) {
+            handleScreens();
+        }
+
+        if (update) {
+            DiscordIPC.setActivity(rpc);
+        }
+
+        forceUpdate = false;
+        lastWasInMainMenu = !Utils.canUpdate();
+    }
+
+    private void handleLines() {
+        // Line 1
+        if (line1Ticks < line1UpdateDelay.get() && !forceUpdate) {
+            line1Ticks++;
+        } else {
+            if (!line1Scripts.isEmpty()) {
+                int i = Utils.random(0, line1Scripts.size());
+                if (line1SelectMode.get() == DiscordPresence.SelectMode.Sequential) {
+                    if (line1I >= line1Scripts.size()) line1I = 0;
+                    i = line1I++;
+                }
+                String msg = MeteorStarscript.run(line1Scripts.get(i));
+                if (msg != null) rpc.setDetails(msg);
+            }
+            update = true;
+            line1Ticks = 0;
+        }
+
+        // Line 2 — añade servidor si está disponible
+        if (line2Ticks < line2UpdateDelay.get() && !forceUpdate) {
+            line2Ticks++;
+        } else {
+            if (!line2Scripts.isEmpty()) {
+                int i = Utils.random(0, line2Scripts.size());
+                if (line2SelectMode.get() == DiscordPresence.SelectMode.Sequential) {
+                    if (line2I >= line2Scripts.size()) line2I = 0;
+                    i = line2I++;
+                }
+                String msg = MeteorStarscript.run(line2Scripts.get(i));
+                if (msg != null) {
+                    String server = getServerName();
+                    rpc.setState(server != null ? msg + " | " + server : msg);
+                }
+            }
+            update = true;
+            line2Ticks = 0;
         }
     }
 
-    private void updateRPC() {
-        List<String> l1 = line1.get();
-        List<String> l2 = line2.get();
+    public void handleScreens() {
+        rpc.setDetails("xA Addon");
 
-        if (l1.isEmpty() || l2.isEmpty()) return;
+        if (mc.currentScreen instanceof TitleScreen) {
+            rpc.setState("En el Menu principal");
+        } else if (mc.currentScreen instanceof SelectWorldScreen) {
+            rpc.setState("Seleccionando mundo");
+        } else if (mc.currentScreen instanceof CreateWorldScreen) {
+            rpc.setState("Creando un mundo");
+        } else if (mc.currentScreen instanceof EditWorldScreen) {
+            rpc.setState("Editando un mundo");
+        } else if (mc.currentScreen instanceof LevelLoadingScreen) {
+            rpc.setState("Cargando mundo");
+        } else if (mc.currentScreen instanceof MultiplayerScreen) {
+            rpc.setState("Seleccionando un servidor");
+        } else if (mc.currentScreen instanceof AddServerScreen) {
+            rpc.setState("Añadiendo un servidor");
+        } else if (mc.currentScreen instanceof ConnectScreen) {
+            rpc.setState("Conectandose a un servidor");
+        } else if (mc.currentScreen instanceof WidgetScreen) {
+            rpc.setState("Configurando Meteor Client");
+        } else if (mc.currentScreen instanceof OptionsScreen
+                || mc.currentScreen instanceof SkinOptionsScreen
+                || mc.currentScreen instanceof SoundOptionsScreen
+                || mc.currentScreen instanceof VideoOptionsScreen
+                || mc.currentScreen instanceof MouseOptionsScreen
+                || mc.currentScreen instanceof KeybindsScreen
+                || mc.currentScreen instanceof LanguageOptionsScreen) {
+            rpc.setState("Cambiando ajustes");
+        } else if (mc.currentScreen instanceof CreditsScreen) {
+            rpc.setState("En los creditos del juego");
+        } else if (mc.currentScreen instanceof RealmsMainScreen) {
+            rpc.setState("Buscando en Realms");
+        } else {
+            rpc.setState("En la pantalla inicial");
+        }
 
-        String details = l1.get(index1 % l1.size());
-        String state   = l2.get(index2 % l2.size());
-        index1 = (index1 + 1) % l1.size();
-        index2 = (index2 + 1) % l2.size();
+        update = true;
+    }
 
-        String server = getServerName();
+    private String getServerName() {
+        if (mc.getCurrentServerEntry() != null) return mc.getCurrentServerEntry().address;
+        if (mc.isInSingleplayer()) return "Singleplayer";
+        return null;
+    }
 
-        presence.setDetails(details);
-        // Añade el servidor al estado si está disponible
-        presence.setState(server != null ? state + " | " + server : state);
-        presence.setLargeImage("25565", "xA Addon");
-        DiscordIPC.setActivity(presence);
+    private void recompile(List<String> messages, List<Script> scripts) {
+        scripts.clear();
+        for (String message : messages) {
+            Script script = MeteorStarscript.compile(message);
+            if (script != null) scripts.add(script);
+        }
+        forceUpdate = true;
+    }
+
+    private void recompileLine1() { recompile(line1Strings.get(), line1Scripts); }
+    private void recompileLine2() { recompile(line2Strings.get(), line2Scripts); }
+
+    @EventHandler
+    private void onOpenScreen(OpenScreenEvent event) {
+        if (!Utils.canUpdate()) lastWasInMainMenu = false;
+    }
+
+    @Override
+    public WWidget getWidget(GuiTheme theme) {
+        WButton btn = theme.button("Join xA Discord");
+        btn.action = () -> Util.getOperatingSystem().open("https://discord.gg/8ezp4sthqG");
+        return btn;
+    }
+
+    // Small images que rotan — pon tus propios assets del Discord Developer Portal
+    public enum SmallImage {
+        Logo("25565", "xA Addon");
+
+        private final String key;
+        private final String text;
+
+        SmallImage(String key, String text) {
+            this.key = key;
+            this.text = text;
+        }
+
+        void apply() {
+            rpc.setSmallImage(key, text);
+        }
+
+        SmallImage next() {
+            SmallImage[] values = values();
+            return values[(ordinal() + 1) % values.length];
+        }
     }
 }
