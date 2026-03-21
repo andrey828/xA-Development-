@@ -1,7 +1,7 @@
 package com.example.addon.modules;
 
 import com.example.addon.AddonTemplate;
-import com.example.addon.mixin.PlayerMoveC2SPacketAccessor;
+import com.example.addon.mixin.accessor.PlayerMoveC2SPacketAccessor;
 
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.systems.modules.Module;
