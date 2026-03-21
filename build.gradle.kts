@@ -15,10 +15,6 @@ repositories {
         name = "meteor-maven-snapshots"
         url = uri("https://maven.meteordev.org/snapshots")
     }
-    maven {
-        name = "jitpack"
-        url = uri("https://jitpack.io")
-    }
 }
 dependencies {
     // Fabric
@@ -27,8 +23,6 @@ dependencies {
     modImplementation(libs.fabric.loader)
     // Meteor
     modImplementation(libs.meteor.client)
-    // discord-ipc incluida explicitamente para poder modificarla
-    include(implementation("com.github.MeteorDevelopment:discord-ipc:2be0a88")!!)
 }
 tasks {
     processResources {
