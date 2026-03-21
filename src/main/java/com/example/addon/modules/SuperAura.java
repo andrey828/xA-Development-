@@ -11,6 +11,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
@@ -26,13 +27,16 @@ public class SuperAura extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgAnarchy = settings.createGroup("Anarchy Config");
 
+    public static boolean isSendingAttack = false;
+
     private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder()
         .name("range").description("Alcance máximo (TP Reach).")
         .defaultValue(100.0).min(1.0).sliderMax(250.0).build());
 
+    // Ahora en milisegundos — 0ms = sin delay
     private final Setting<Integer> hitDelay = sgGeneral.add(new IntSetting.Builder()
-        .name("hit-delay").description("Ticks entre ataques (0 = Super Rápido).")
-        .defaultValue(2).min(0).sliderMax(20).build());
+        .name("hit-delay-ms").description("Delay entre ataques en milisegundos (0 = sin límite).")
+        .defaultValue(100).min(0).sliderMax(2000).build());
 
     private final Setting<Set<EntityType<?>>> entities = sgGeneral.add(new EntityTypeListSetting.Builder()
         .name("entities").onlyAttackable().defaultValue(EntityType.PLAYER).build());
@@ -86,7 +90,8 @@ public class SuperAura extends Module {
         .name("safety-health").description("Se apaga si tu vida es menor a esto.")
         .defaultValue(0.0).min(0.0).sliderMax(20.0).build());
 
-    private int timer;
+    // Timestamp del último ataque en ms
+    private long lastAttackTime = 0;
 
     public SuperAura() {
         super(AddonTemplate.CATEGORY, "xAura", "Infinite Reach KillAura");
@@ -94,7 +99,13 @@ public class SuperAura extends Module {
 
     @Override
     public void onActivate() {
-        timer = 0;
+        lastAttackTime = 0;
+        isSendingAttack = false;
+    }
+
+    @Override
+    public void onDeactivate() {
+        isSendingAttack = false;
     }
 
     @EventHandler
@@ -102,7 +113,9 @@ public class SuperAura extends Module {
         if (mc.player == null || mc.world == null || !mc.player.isAlive()) return;
         if (mc.player.getHealth() <= minHealth.get()) { toggle(); return; }
 
-        if (timer > 0) { timer--; return; }
+        // Check delay en milisegundos reales
+        long now = System.currentTimeMillis();
+        if (now - lastAttackTime < hitDelay.get()) return;
 
         if (multiTarget.get()) {
             List<Entity> targets = StreamSupport.stream(mc.world.getEntities().spliterator(), false)
@@ -120,7 +133,7 @@ public class SuperAura extends Module {
             attackProcess(target);
         }
 
-        timer = hitDelay.get();
+        lastAttackTime = System.currentTimeMillis();
     }
 
     private void attackProcess(Entity target) {
@@ -153,9 +166,13 @@ public class SuperAura extends Module {
             sendPos(new Vec3d(destination.x, destination.y + 0.1001, destination.z));
         }
 
-        // Ataque
+        // Ataque — flag para que UltraMace no intercepte
         for (int i = 0; i < packetsPerHit.get(); i++) {
-            mc.interactionManager.attackEntity(mc.player, target);
+            isSendingAttack = true;
+            mc.player.networkHandler.sendPacket(
+                PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking())
+            );
+            isSendingAttack = false;
         }
 
         if (swing.get()) mc.player.swingHand(Hand.MAIN_HAND);
