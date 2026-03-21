@@ -9,6 +9,7 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class xRPC extends Module {
 
@@ -37,12 +38,12 @@ public class xRPC extends Module {
             .build()
     );
 
-    // Fix: no longer static — each activation gets a fresh instance
     private RichPresence presence;
     private int ticks;
     private int index1;
     private int index2;
-    private boolean ipcStarted = false;
+    private long startTime;
+    private final AtomicBoolean ipcStarted = new AtomicBoolean(false);
 
     public xRPC() {
         super(AddonTemplate.CATEGORY, "xRPC", "Discord Rich Presence for xA.");
@@ -50,34 +51,51 @@ public class xRPC extends Module {
 
     @Override
     public void onActivate() {
-        presence = new RichPresence();
-        ticks  = 0;
-        index1 = 0;
-        index2 = 0;
-        ipcStarted = false;
-
-        try {
-            DiscordIPC.start(1483491540784644377L, null);
-            ipcStarted = true;
-            presence.setStart(System.currentTimeMillis() / 1000L);
-            updateRPC();
-        } catch (Exception e) {
-            // IPC failed (Discord not running, etc.) — module stays on but does nothing
-            ipcStarted = false;
-        }
+        presence  = new RichPresence();
+        ticks     = 0;
+        index1    = 0;
+        index2    = 0;
+        startTime = System.currentTimeMillis() / 1000L;
+        startIPC();
     }
 
     @Override
     public void onDeactivate() {
-        if (ipcStarted) {
-            DiscordIPC.stop();
-            ipcStarted = false;
+        if (ipcStarted.get()) {
+            try { DiscordIPC.stop(); } catch (Exception ignored) {}
+            ipcStarted.set(false);
         }
+    }
+
+    private void startIPC() {
+        try {
+            DiscordIPC.start(1483491540784644377L, null);
+            ipcStarted.set(true);
+            presence.setStart(startTime);
+            updateRPC();
+        } catch (Exception e) {
+            ipcStarted.set(false);
+        }
+    }
+
+    private String getServerName() {
+        // En un servidor online devuelve la IP, en singleplayer devuelve null
+        if (mc.getCurrentServerEntry() != null) {
+            return mc.getCurrentServerEntry().address;
+        }
+        // Singleplayer / Realm
+        if (mc.isIntegratedServerRunning()) {
+            return "Singleplayer";
+        }
+        return null;
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (!ipcStarted) return;
+        try { DiscordIPC.stop(); } catch (Exception ignored) {}
+        startIPC();
+
+        if (!ipcStarted.get()) return;
 
         ticks++;
         if (ticks >= delay.get()) {
@@ -92,17 +110,22 @@ public class xRPC extends Module {
 
         if (l1.isEmpty() || l2.isEmpty()) return;
 
-        String details;
-        String state;
-
-        details = l1.get(index1 % l1.size());
-        state   = l2.get(index2 % l2.size());
-        index1  = (index1 + 1) % l1.size();
-        index2  = (index2 + 1) % l2.size();
+        String details = l1.get(index1 % l1.size());
+        String state   = l2.get(index2 % l2.size());
+        index1 = (index1 + 1) % l1.size();
+        index2 = (index2 + 1) % l2.size();
 
         presence.setDetails(details);
         presence.setState(state);
-        // Fix: use a proper image asset key, not a port number
+
+        // Muestra el servidor debajo del estado
+        String server = getServerName();
+        if (server != null) {
+            presence.setSmallImage("25565", "Jugando en: " + server);
+        } else {
+            presence.setSmallImage(null, null); // Menú principal, sin servidor
+        }
+
         presence.setLargeImage("25565", "xA Addon");
         DiscordIPC.setActivity(presence);
     }
