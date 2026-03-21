@@ -153,9 +153,8 @@ public class SuperAura extends Module {
             sendPos(new Vec3d(destination.x, destination.y + 0.1001, destination.z));
         }
 
-      // Ataque sin daño local — acceso directo al campo mapeado
+        // Ataque
         for (int i = 0; i < packetsPerHit.get(); i++) {
-            mc.player.lastAttackedTicks = 0;
             mc.interactionManager.attackEntity(mc.player, target);
         }
 
