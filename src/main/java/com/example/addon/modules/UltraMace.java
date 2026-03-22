@@ -11,12 +11,10 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
-import net.minecraft.util.math.Vec3d;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -39,7 +37,7 @@ public class UltraMace extends Module {
     private boolean isWorking = false;
 
     public UltraMace() {
-        super(AddonTemplate.CATEGORY, "xMace", "Maximum Mace Power - No Limits Anarchy.");
+        super(AddonTemplate.CATEGORY, "UltraMace", "Maximum Mace Power - No Limits.");
 
         for (int i = 3; i <= 32; i++) {
             int finalI = i;
@@ -67,56 +65,52 @@ public class UltraMace extends Module {
             if (entity instanceof LivingEntity target) {
                 if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
 
-
-                Vec3d pPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
-                Vec3d tPos = new Vec3d(target.getX(), target.getY(), target.getZ());
-
-                if (pPos.distanceTo(tPos) > attackRange.get()) return;
-
                 event.cancel();
                 isWorking = true;
 
-                // Buscar el Mazo
+                // --- BYPASS DE COMPILACIÓN: REFLEXIÓN ---
+                int oldSlot = 0;
+                try {
+                    Field field = mc.player.getInventory().getClass().getDeclaredField("selectedSlot");
+                    field.setAccessible(true);
+                    oldSlot = (int) field.get(mc.player.getInventory());
+                } catch (Exception e) {
+                    oldSlot = 0;
+                }
+
                 int maceSlot = -1;
                 for (int i = 0; i < 9; i++) {
                     if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) {
                         maceSlot = i;
-                        break;
                     }
                 }
 
                 if (maceSlot != -1 || mc.player.getMainHandStack().isOf(Items.MACE)) {
-                    // Reflexión para leer selectedSlot (Solución al error Private Access)
-                    int oldSlot = getSelectedSlot();
-
                     if (autoSwitch.get() && maceSlot != -1) {
                         mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
                     }
 
-                    // IDA (Teleport)
-                    teleport(pPos, tPos);
+                    double px = mc.player.getX();
+                    double py = mc.player.getY();
+                    double pz = mc.player.getZ();
 
-                    // EJECUCIÓN DE GOLPES
                     for (int a = 0; a < hitAmount.get(); a++) {
-                        applyHit(target, macePower.get(), tPos.x, tPos.y, tPos.z);
-                        applyHit(target, hit1.get(), tPos.x, tPos.y, tPos.z);
-                        applyHit(target, hit2.get(), tPos.x, tPos.y, tPos.z);
+                        applyHit(target, macePower.get(), px, py, pz);
+                        applyHit(target, hit1.get(), px, py, pz);
+                        applyHit(target, hit2.get(), px, py, pz);
 
                         for (int i = 0; i < extraHitsAmount.get(); i++) {
-                            applyHit(target, extraHeights.get(i).get(), tPos.x, tPos.y, tPos.z);
+                            applyHit(target, extraHeights.get(i).get(), px, py, pz);
                         }
 
                         if (doTotemFail.get()) {
                             for (int i = 0; i < noGroundPackets.get(); i++) {
-                                sendPos(tPos.x, tPos.y + (i * 0.0001), tPos.z, false);
+                                sendPos(px, py + (i * 0.0001), pz, false);
                                 mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
-                                sendPos(tPos.x, tPos.y, tPos.z, false);
+                                sendPos(px, py, pz, false);
                             }
                         }
                     }
-
-                    // VUELTA (Regreso instantáneo)
-                    teleport(tPos, pPos);
 
                     if (autoSwitch.get() && maceSlot != -1) {
                         mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
@@ -128,36 +122,16 @@ public class UltraMace extends Module {
         }
     }
 
-    private int getSelectedSlot() {
-        try {
-            Field field = PlayerInventory.class.getDeclaredField("selectedSlot");
-            field.setAccessible(true);
-            return (int) field.get(mc.player.getInventory());
-        } catch (Exception e) {
-            return 0; // Fallback
-        }
-    }
-
-    private void teleport(Vec3d from, Vec3d to) {
-        double dist = from.distanceTo(to);
-        double steps = Math.ceil(dist / tpStep.get());
-        for (int i = 1; i <= (int) steps; i++) {
-            Vec3d step = from.lerp(to, (double) i / steps);
-            sendPos(step.x, step.y, step.z, true);
-        }
-    }
-
     private void applyHit(Entity target, int height, double x, double y, double z) {
         sendPos(x, y + height, z, false);
-        sendPos(x, y, z, false);
+        sendPos(x, y, z, false); 
         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
         sendPos(x, y, z, false);
     }
 
     private void sendPos(double x, double y, double z, boolean onGround) {
         PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, onGround, mc.player.horizontalCollision);
-
-        ((IPlayerMoveC2SPacket) (Object) p).meteor$setTag(1337);
+        ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
         mc.getNetworkHandler().sendPacket(p);
     }
 }
