@@ -38,6 +38,10 @@ public class UltraMace extends Module {
         .name("Hit 2").description("Altura del segundo golpe.")
         .defaultValue(40).min(1).sliderRange(1, 1000).build());
 
+    private final Setting<Integer> extraHitsAmount = sgGeneral.add(new IntSetting.Builder()
+        .name("Extra Hits Amount").description("Cuántos extra hits adicionales.")
+        .defaultValue(0).min(0).sliderRange(0, 30).build());
+
     private final Setting<Integer> sendPacketsAmount = sgGeneral.add(new IntSetting.Builder()
         .name("No Ground Packets").description("Paquetes sin suelo para TotemFail.")
         .defaultValue(4).min(1).sliderRange(1, 20).build());
@@ -54,11 +58,24 @@ public class UltraMace extends Module {
         .name("Auto Switch").description("Cambia automáticamente al Mace.")
         .defaultValue(true).build());
 
+    // Extra heights en sgExtra — aparecen según extraHitsAmount
     private final List<Setting<Integer>> extraHeights = new ArrayList<>();
-    private boolean isWorking = false;
 
     public UltraMace() {
         super(AddonTemplate.CATEGORY, "xMace", "Maximum Mace Power - No Limits.");
+
+        for (int i = 1; i <= 30; i++) {
+            int finalI = i;
+            extraHeights.add(sgExtra.add(new IntSetting.Builder()
+                .name("Extra Hit " + i)
+                .description("Altura del extra hit " + i)
+                .defaultValue(50 + (i * 10))
+                .min(1)
+                .sliderRange(1, 1000)
+                .visible(() -> extraHitsAmount.get() >= finalI)
+                .build()
+            ));
+        }
     }
 
     @EventHandler
@@ -104,7 +121,6 @@ public class UltraMace extends Module {
 
             Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
 
-            // Verificar si xAura está activo
             SuperAura aura = Modules.get().get(SuperAura.class);
             boolean auraActive = aura != null && aura.isActive();
 
@@ -122,13 +138,14 @@ public class UltraMace extends Module {
         }
     }
 
+    private boolean isWorking = false;
+
     private void executeHits(Entity target, Vec3d origin) {
         double px = origin.x;
         double py = origin.y;
         double pz = origin.z;
 
         if (alwaysTF.get()) {
-            // Modo TotemFail: 3 hits con alturas distintas + paquetes sin suelo
             for (int i = 0; i < hitAmount.get(); i++) {
                 lerpUpDown(px, py, pz, attack1.get());
                 sendAttack(target);
@@ -138,9 +155,15 @@ public class UltraMace extends Module {
 
                 lerpUpDown(px, py, pz, attack2.get());
                 sendAttack(target);
+
+                // Extra hits
+                for (int j = 0; j < extraHitsAmount.get(); j++) {
+                    lerpUpDown(px, py, pz, extraHeights.get(j).get());
+                    sendAttack(target);
+                }
             }
 
-            // Paquetes sin suelo para forzar fallo del tótem
+            // Paquetes sin suelo para TotemFail
             for (int i = 0; i < sendPacketsAmount.get(); i++) {
                 sendPos(px, py + (i * 0.001), pz, false);
             }
@@ -148,28 +171,30 @@ public class UltraMace extends Module {
             sendPos(px, py, pz, true);
 
         } else {
-            // Modo normal: solo el golpe principal
             for (int i = 0; i < hitAmount.get(); i++) {
                 lerpUpDown(px, py, pz, fallHeight.get());
                 sendAttack(target);
+
+                // Extra hits en modo normal también
+                for (int j = 0; j < extraHitsAmount.get(); j++) {
+                    lerpUpDown(px, py, pz, extraHeights.get(j).get());
+                    sendAttack(target);
+                }
             }
         }
     }
 
-    // Sube y baja en pasos graduales como el LerpUpDown del original
     private void lerpUpDown(double x, double y, double z, int height) {
         Vec3d bottom = new Vec3d(x, y, z);
         Vec3d top = new Vec3d(x, y + height, z);
 
         int steps = Math.max(1, height / 10);
 
-        // Subir
         for (int i = 1; i <= steps; i++) {
             Vec3d pos = bottom.lerp(top, (double) i / steps);
             sendPos(pos.x, pos.y, pos.z, false);
         }
 
-        // Bajar
         for (int i = steps - 1; i >= 0; i--) {
             Vec3d pos = bottom.lerp(top, (double) i / steps);
             sendPos(pos.x, pos.y, pos.z, false);
@@ -191,4 +216,4 @@ public class UltraMace extends Module {
         ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
         mc.getNetworkHandler().sendPacket(p);
     }
-    }
+}
