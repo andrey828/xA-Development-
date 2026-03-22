@@ -7,11 +7,11 @@ import meteordevelopment.meteorclient.mixininterface.IPlayerMoveC2SPacket;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
@@ -26,53 +26,31 @@ public class UltraMace extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgExtra = settings.createGroup("Extra Heights (Max Power)");
 
-    private final Setting<Integer> fallHeight = sgGeneral.add(new IntSetting.Builder()
-        .name("Mace Power").description("Altura del golpe principal.")
-        .defaultValue(23).min(1).sliderRange(1, 1000).build());
+    private final Setting<Double> attackRange = sgGeneral.add(new DoubleSetting.Builder().name("Attack Range").defaultValue(5.0).min(1.0).sliderMax(100.0).build());
+    private final Setting<Double> tpStep = sgGeneral.add(new DoubleSetting.Builder().name("TP Step").defaultValue(8.0).min(1.0).sliderMax(20.0).build());
+    private final Setting<Integer> macePower = sgGeneral.add(new IntSetting.Builder().name("Mace Power").defaultValue(113).range(1, Integer.MAX_VALUE).sliderRange(1, 20000).build());
+    private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder().name("Auto Switch").defaultValue(true).build());
+    private final Setting<Boolean> doTotemFail = sgGeneral.add(new BoolSetting.Builder().name("Do TotemFail").defaultValue(true).build());
+    private final Setting<Integer> hit1 = sgGeneral.add(new IntSetting.Builder().name("Hit 1").defaultValue(30).range(1, Integer.MAX_VALUE).sliderRange(1, 20000).build());
+    private final Setting<Integer> hit2 = sgGeneral.add(new IntSetting.Builder().name("Hit 2").defaultValue(60).range(1, Integer.MAX_VALUE).sliderRange(1, 20000).build());
+    private final Setting<Integer> extraHitsAmount = sgGeneral.add(new IntSetting.Builder().name("Extra Hits Amount").defaultValue(10).range(0, 30).build());
+    private final Setting<Integer> noGroundPackets = sgGeneral.add(new IntSetting.Builder().name("TotemFail Packets").defaultValue(20).range(0, 5000).build());
+    private final Setting<Integer> hitAmount = sgGeneral.add(new IntSetting.Builder().name("Global Multiplier").defaultValue(1).range(1, 1000).build());
 
-    private final Setting<Integer> attack1 = sgGeneral.add(new IntSetting.Builder()
-        .name("Hit 1").description("Altura del primer golpe.")
-        .defaultValue(23).min(1).sliderRange(1, 1000).build());
-
-    private final Setting<Integer> attack2 = sgGeneral.add(new IntSetting.Builder()
-        .name("Hit 2").description("Altura del segundo golpe.")
-        .defaultValue(40).min(1).sliderRange(1, 1000).build());
-
-    private final Setting<Integer> extraHitsAmount = sgGeneral.add(new IntSetting.Builder()
-        .name("Extra Hits Amount").description("Cuántos extra hits adicionales.")
-        .defaultValue(0).min(0).sliderRange(0, 30).build());
-
-    private final Setting<Integer> sendPacketsAmount = sgGeneral.add(new IntSetting.Builder()
-        .name("No Ground Packets").description("Paquetes sin suelo para TotemFail.")
-        .defaultValue(4).min(1).sliderRange(1, 20).build());
-
-    private final Setting<Boolean> alwaysTF = sgGeneral.add(new BoolSetting.Builder()
-        .name("Do TotemFail").description("Siempre hace TotemFail.")
-        .defaultValue(false).build());
-
-    private final Setting<Integer> hitAmount = sgGeneral.add(new IntSetting.Builder()
-        .name("Hit Amount").description("Cuántos hits por ataque.")
-        .defaultValue(1).min(1).sliderRange(1, 10).build());
-
-    private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder()
-        .name("Auto Switch").description("Cambia automáticamente al Mace.")
-        .defaultValue(true).build());
-
-    // Extra heights en sgExtra — aparecen según extraHitsAmount
     private final List<Setting<Integer>> extraHeights = new ArrayList<>();
+    private boolean isWorking = false;
 
     public UltraMace() {
-        super(AddonTemplate.CATEGORY, "xMace", "Maximum Mace Power - No Limits.");
+        super(AddonTemplate.CATEGORY, "xMace", "Maximum Mace Power - No Limits Anarchy.");
 
-        for (int i = 1; i <= 30; i++) {
+        for (int i = 3; i <= 32; i++) {
             int finalI = i;
             extraHeights.add(sgExtra.add(new IntSetting.Builder()
-                .name("Extra Hit " + i)
-                .description("Altura del extra hit " + i)
-                .defaultValue(50 + (i * 10))
-                .min(1)
-                .sliderRange(1, 1000)
-                .visible(() -> extraHitsAmount.get() >= finalI)
+                .name("Hit " + i)
+                .defaultValue(100 + (i * 50))
+                .range(1, Integer.MAX_VALUE)
+                .sliderRange(1, 20000)
+                .visible(() -> extraHitsAmount.get() >= (finalI - 2))
                 .build()
             ));
         }
@@ -82,138 +60,106 @@ public class UltraMace extends Module {
     private void onSendPacket(PacketEvent.Send event) {
         if (mc.player == null || mc.getNetworkHandler() == null || isWorking) return;
         if (event.packet instanceof IPlayerMoveC2SPacket move && move.meteor$getTag() == 1337) return;
-        if (SuperAura.isSendingAttack) return;
 
         if (event.packet instanceof PlayerInteractEntityC2SPacket packet) {
             IPlayerInteractEntityC2SPacket accessor = (IPlayerInteractEntityC2SPacket) packet;
             if (!String.valueOf(accessor.meteor$getType()).contains("ATTACK")) return;
 
             Entity entity = accessor.meteor$getEntity();
-            if (!(entity instanceof LivingEntity target)) return;
-            if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
+            if (entity instanceof LivingEntity target) {
+                if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
 
-            event.cancel();
-            isWorking = true;
 
-            int oldSlot = 0;
-            try {
-                Field field = mc.player.getInventory().getClass().getDeclaredField("selectedSlot");
-                field.setAccessible(true);
-                oldSlot = (int) field.get(mc.player.getInventory());
-            } catch (Exception ignored) {}
+                Vec3d pPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+                Vec3d tPos = new Vec3d(target.getX(), target.getY(), target.getZ());
 
-            int maceSlot = -1;
-            if (autoSwitch.get()) {
+                if (pPos.distanceTo(tPos) > attackRange.get()) return;
+
+                event.cancel();
+                isWorking = true;
+
+                // Buscar el Mazo
+                int maceSlot = -1;
                 for (int i = 0; i < 9; i++) {
                     if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) {
                         maceSlot = i;
                         break;
                     }
                 }
-            }
 
-            boolean hasMace = maceSlot != -1 || mc.player.getMainHandStack().isOf(Items.MACE);
-            if (!hasMace) { isWorking = false; return; }
+                if (maceSlot != -1 || mc.player.getMainHandStack().isOf(Items.MACE)) {
+                    // Reflexión para leer selectedSlot (Solución al error Private Access)
+                    int oldSlot = getSelectedSlot();
 
-            if (autoSwitch.get() && maceSlot != -1) {
-                mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
-            }
+                    if (autoSwitch.get() && maceSlot != -1) {
+                        mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
+                    }
 
-            Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+                    // IDA (Teleport)
+                    teleport(pPos, tPos);
 
-            SuperAura aura = Modules.get().get(SuperAura.class);
-            boolean auraActive = aura != null && aura.isActive();
+                    // EJECUCIÓN DE GOLPES
+                    for (int a = 0; a < hitAmount.get(); a++) {
+                        applyHit(target, macePower.get(), tPos.x, tPos.y, tPos.z);
+                        applyHit(target, hit1.get(), tPos.x, tPos.y, tPos.z);
+                        applyHit(target, hit2.get(), tPos.x, tPos.y, tPos.z);
 
-            if (auraActive) {
-                aura.teleportToAndBack(target, () -> executeHits(target, origin));
-            } else {
-                executeHits(target, origin);
-            }
+                        for (int i = 0; i < extraHitsAmount.get(); i++) {
+                            applyHit(target, extraHeights.get(i).get(), tPos.x, tPos.y, tPos.z);
+                        }
 
-            if (autoSwitch.get() && maceSlot != -1) {
-                mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
-            }
+                        if (doTotemFail.get()) {
+                            for (int i = 0; i < noGroundPackets.get(); i++) {
+                                sendPos(tPos.x, tPos.y + (i * 0.0001), tPos.z, false);
+                                mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
+                                sendPos(tPos.x, tPos.y, tPos.z, false);
+                            }
+                        }
+                    }
 
-            isWorking = false;
-        }
-    }
+                    // VUELTA (Regreso instantáneo)
+                    teleport(tPos, pPos);
 
-    private boolean isWorking = false;
-
-    private void executeHits(Entity target, Vec3d origin) {
-        double px = origin.x;
-        double py = origin.y;
-        double pz = origin.z;
-
-        if (alwaysTF.get()) {
-            for (int i = 0; i < hitAmount.get(); i++) {
-                lerpUpDown(px, py, pz, attack1.get());
-                sendAttack(target);
-
-                lerpUpDown(px, py, pz, attack2.get());
-                sendAttack(target);
-
-                lerpUpDown(px, py, pz, attack2.get());
-                sendAttack(target);
-
-                // Extra hits
-                for (int j = 0; j < extraHitsAmount.get(); j++) {
-                    lerpUpDown(px, py, pz, extraHeights.get(j).get());
-                    sendAttack(target);
+                    if (autoSwitch.get() && maceSlot != -1) {
+                        mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
+                    }
                 }
-            }
 
-            // Paquetes sin suelo para TotemFail
-            for (int i = 0; i < sendPacketsAmount.get(); i++) {
-                sendPos(px, py + (i * 0.001), pz, false);
-            }
-            sendAttack(target);
-            sendPos(px, py, pz, true);
-
-        } else {
-            for (int i = 0; i < hitAmount.get(); i++) {
-                lerpUpDown(px, py, pz, fallHeight.get());
-                sendAttack(target);
-
-                // Extra hits en modo normal también
-                for (int j = 0; j < extraHitsAmount.get(); j++) {
-                    lerpUpDown(px, py, pz, extraHeights.get(j).get());
-                    sendAttack(target);
-                }
+                isWorking = false;
             }
         }
     }
 
-    private void lerpUpDown(double x, double y, double z, int height) {
-        Vec3d bottom = new Vec3d(x, y, z);
-        Vec3d top = new Vec3d(x, y + height, z);
-
-        int steps = Math.max(1, height / 10);
-
-        for (int i = 1; i <= steps; i++) {
-            Vec3d pos = bottom.lerp(top, (double) i / steps);
-            sendPos(pos.x, pos.y, pos.z, false);
-        }
-
-        for (int i = steps - 1; i >= 0; i--) {
-            Vec3d pos = bottom.lerp(top, (double) i / steps);
-            sendPos(pos.x, pos.y, pos.z, false);
+    private int getSelectedSlot() {
+        try {
+            Field field = PlayerInventory.class.getDeclaredField("selectedSlot");
+            field.setAccessible(true);
+            return (int) field.get(mc.player.getInventory());
+        } catch (Exception e) {
+            return 0; // Fallback
         }
     }
 
-    private void sendAttack(Entity target) {
-        SuperAura.isSendingAttack = true;
-        mc.getNetworkHandler().sendPacket(
-            PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking())
-        );
-        SuperAura.isSendingAttack = false;
+    private void teleport(Vec3d from, Vec3d to) {
+        double dist = from.distanceTo(to);
+        double steps = Math.ceil(dist / tpStep.get());
+        for (int i = 1; i <= (int) steps; i++) {
+            Vec3d step = from.lerp(to, (double) i / steps);
+            sendPos(step.x, step.y, step.z, true);
+        }
+    }
+
+    private void applyHit(Entity target, int height, double x, double y, double z) {
+        sendPos(x, y + height, z, false);
+        sendPos(x, y, z, false);
+        mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
+        sendPos(x, y, z, false);
     }
 
     private void sendPos(double x, double y, double z, boolean onGround) {
-        PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(
-            x, y, z, onGround, mc.player.horizontalCollision
-        );
-        ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
+        PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, onGround, mc.player.horizontalCollision);
+
+        ((IPlayerMoveC2SPacket) (Object) p).meteor$setTag(1337);
         mc.getNetworkHandler().sendPacket(p);
     }
 }
