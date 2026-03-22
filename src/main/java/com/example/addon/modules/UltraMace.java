@@ -26,8 +26,6 @@ public class UltraMace extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgExtra = settings.createGroup("Extra Heights (Max Power)");
 
-    private final Setting<Double> attackRange = sgGeneral.add(new DoubleSetting.Builder().name("Attack Range").defaultValue(5.0).min(1.0).sliderMax(100.0).build());
-    private final Setting<Double> tpStep = sgGeneral.add(new DoubleSetting.Builder().name("TP Step").defaultValue(8.0).min(1.0).sliderMax(20.0).build());
     private final Setting<Integer> macePower = sgGeneral.add(new IntSetting.Builder().name("Mace Power").defaultValue(113).range(1, Integer.MAX_VALUE).sliderRange(1, 20000).build());
     private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder().name("Auto Switch").defaultValue(true).build());
     private final Setting<Boolean> doTotemFail = sgGeneral.add(new BoolSetting.Builder().name("Do TotemFail").defaultValue(true).build());
