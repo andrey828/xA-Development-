@@ -121,7 +121,7 @@ public class xRPC extends Module {
     }
 
     private void tryConnect() {
-        patchTLauncherIPC();
+        patchDiscordIPC();
         try {
             DiscordIPC.start(1483491540784644377L, null);
             rpc.setStart(System.currentTimeMillis() / 1000L);
@@ -135,25 +135,52 @@ public class xRPC extends Module {
         }
     }
 
-    private void patchTLauncherIPC() {
-        String[] searchDirs = {
-            System.getenv("XDG_RUNTIME_DIR"),
-            "/tmp",
-            "/run/user/1000",
-            System.getenv("XDG_RUNTIME_DIR") != null
-                ? System.getenv("XDG_RUNTIME_DIR") + "/app/com.discordapp.Discord"
-                : null,
-            "/tmp/snap.discord",
-            System.getProperty("java.io.tmpdir")
-        };
+    private void patchDiscordIPC() {
+        String os = System.getProperty("os.name").toLowerCase();
 
-        for (String dir : searchDirs) {
-            if (dir == null) continue;
-            for (int i = 0; i <= 9; i++) {
-                File pipe = new File(dir, "discord-ipc-" + i);
-                if (pipe.exists()) {
-                    System.setProperty("java.io.tmpdir", dir);
-                    return;
+        if (os.contains("win")) {
+            // En Windows el pipe es \\.\pipe\discord-ipc-0
+            // TLauncher a veces lanza Java con un TEMP diferente,
+            // pero discord-ipc en Windows busca el named pipe directamente,
+            // no usa TEMP. El problema en Windows es que TLauncher lanza
+            // Minecraft en un proceso sin la variable LOCALAPPDATA correcta.
+            // Forzamos las variables que discord-ipc necesita en Windows.
+            String localAppData = System.getenv("LOCALAPPDATA");
+            String appData = System.getenv("APPDATA");
+            String userProfile = System.getenv("USERPROFILE");
+
+            if (localAppData == null && userProfile != null) {
+                // TLauncher a veces no hereda LOCALAPPDATA — lo reconstruimos
+                System.setProperty("user.home", userProfile);
+            }
+            if (appData == null && userProfile != null) {
+                String reconstructed = userProfile + "\\AppData\\Roaming";
+                if (new File(reconstructed).exists()) {
+                    // Algunos JVM internos de discord-ipc leen esta sysprop
+                    System.setProperty("appdata", reconstructed);
+                }
+            }
+        } else {
+            // Linux / Mac
+            String[] searchDirs = {
+                System.getenv("XDG_RUNTIME_DIR"),
+                "/tmp",
+                "/run/user/1000",
+                System.getenv("XDG_RUNTIME_DIR") != null
+                    ? System.getenv("XDG_RUNTIME_DIR") + "/app/com.discordapp.Discord"
+                    : null,
+                "/tmp/snap.discord",
+                System.getProperty("java.io.tmpdir")
+            };
+
+            for (String dir : searchDirs) {
+                if (dir == null) continue;
+                for (int i = 0; i <= 9; i++) {
+                    File pipe = new File(dir, "discord-ipc-" + i);
+                    if (pipe.exists()) {
+                        System.setProperty("java.io.tmpdir", dir);
+                        return;
+                    }
                 }
             }
         }
@@ -321,4 +348,5 @@ public class xRPC extends Module {
             return values[(ordinal() + 1) % values.length];
         }
     }
-        }
+                }
+                   
