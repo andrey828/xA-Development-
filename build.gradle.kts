@@ -28,7 +28,8 @@ dependencies {
     // Meteor
     modImplementation(libs.meteor.client)
     // Discord IPC
-    implementation(include("meteordevelopment:discord-ipc:1.0.1"))
+    include("meteordevelopment:discord-ipc:1.0.1")
+    modImplementation("meteordevelopment:discord-ipc:1.0.1")
 }
 tasks {
     processResources {
