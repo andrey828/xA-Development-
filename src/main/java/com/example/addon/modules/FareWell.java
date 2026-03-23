@@ -31,7 +31,7 @@ public class FareWell extends Module {
             .defaultValue(new ArrayList<>(List.of(
                     "xA Addon on top {player}",
                     "A dormir xA on top {player}!",
-                    "UltraMace manda.",
+                    "xMace manda.",
                     "Llora un poco mas {player}"
             )))
             .build()
@@ -55,7 +55,7 @@ public class FareWell extends Module {
 
     public FareWell() {
         // Nombre cambiado a xAutoez como pediste
-        super(AddonTemplate.CATEGORY, "xAutoez", "Envia mensajes pesados cuando alguien muere o rompe tótem cerca.");
+        super(AddonTemplate.CATEGORY, "xAutoez", "Envia mensajes  cuando alguien muere o rompe tótem cerca.");
     }
 
     @EventHandler
