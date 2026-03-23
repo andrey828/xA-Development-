@@ -13,9 +13,7 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.misc.DiscordPresence;
 import meteordevelopment.meteorclient.utils.Utils;
-import meteordevelopment.meteorclient.utils.misc.MeteorStarscript;
 import meteordevelopment.orbit.EventHandler;
-import meteordevelopment.starscript.Script;
 import net.minecraft.client.gui.screen.*;
 import net.minecraft.client.gui.screen.multiplayer.AddServerScreen;
 import net.minecraft.client.gui.screen.multiplayer.ConnectScreen;
@@ -28,7 +26,6 @@ import net.minecraft.client.realms.gui.screen.RealmsMainScreen;
 import net.minecraft.util.Util;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 
 public class xRPC extends Module {
@@ -40,7 +37,6 @@ public class xRPC extends Module {
             .name("line-1-messages")
             .description("Messages used for the first line.")
             .defaultValue(List.of("xA Addon on top", "xA Development"))
-            .onChanged(s -> recompileLine1())
             .build()
     );
 
@@ -65,7 +61,6 @@ public class xRPC extends Module {
             .name("line-2-messages")
             .description("Messages used for the second line.")
             .defaultValue(List.of("Using xA modules", "Best Addon"))
-            .onChanged(s -> recompileLine2())
             .build()
     );
 
@@ -86,9 +81,6 @@ public class xRPC extends Module {
     );
 
     private static final RichPresence rpc = new RichPresence();
-
-    private final List<Script> line1Scripts = new ArrayList<>();
-    private final List<Script> line2Scripts = new ArrayList<>();
 
     private SmallImage currentSmallImage;
     private int ticks;
@@ -111,8 +103,6 @@ public class xRPC extends Module {
     public void onActivate() {
         ipcConnected = false;
         retryTicks = RETRY_INTERVAL;
-        recompileLine1();
-        recompileLine2();
         ticks = 0;
         line1Ticks = 0;
         line2Ticks = 0;
@@ -213,20 +203,21 @@ public class xRPC extends Module {
     }
 
     private void handleLines() {
-        int i;
-        String message;
+        List<String> l1 = line1Strings.get();
+        List<String> l2 = line2Strings.get();
 
         if (line1Ticks < line1UpdateDelay.get() && !forceUpdate) {
             line1Ticks++;
         } else {
-            if (!line1Scripts.isEmpty()) {
-                i = Utils.random(0, line1Scripts.size());
+            if (!l1.isEmpty()) {
+                int i;
                 if (line1SelectMode.get() == DiscordPresence.SelectMode.Sequential) {
-                    if (line1I >= line1Scripts.size()) line1I = 0;
+                    if (line1I >= l1.size()) line1I = 0;
                     i = line1I++;
+                } else {
+                    i = Utils.random(0, l1.size());
                 }
-                message = MeteorStarscript.run(line1Scripts.get(i));
-                if (message != null) rpc.setDetails(message);
+                rpc.setDetails(l1.get(i));
             }
             update = true;
             line1Ticks = 0;
@@ -235,17 +226,17 @@ public class xRPC extends Module {
         if (line2Ticks < line2UpdateDelay.get() && !forceUpdate) {
             line2Ticks++;
         } else {
-            if (!line2Scripts.isEmpty()) {
-                i = Utils.random(0, line2Scripts.size());
+            if (!l2.isEmpty()) {
+                int i;
                 if (line2SelectMode.get() == DiscordPresence.SelectMode.Sequential) {
-                    if (line2I >= line2Scripts.size()) line2I = 0;
+                    if (line2I >= l2.size()) line2I = 0;
                     i = line2I++;
+                } else {
+                    i = Utils.random(0, l2.size());
                 }
-                message = MeteorStarscript.run(line2Scripts.get(i));
-                if (message != null) {
-                    String server = getServerName();
-                    rpc.setState(server != null ? message + " | " + server : message);
-                }
+                String server = getServerName();
+                String msg = l2.get(i);
+                rpc.setState(server != null ? msg + " | " + server : msg);
             }
             update = true;
             line2Ticks = 0;
@@ -255,25 +246,39 @@ public class xRPC extends Module {
     public void handleScreens() {
         rpc.setDetails("xA Addon");
 
-        if      (mc.currentScreen instanceof TitleScreen)        rpc.setState("En el Menu principal");
-        else if (mc.currentScreen instanceof SelectWorldScreen)  rpc.setState("Seleccionando mundo");
-        else if (mc.currentScreen instanceof CreateWorldScreen)  rpc.setState("Creando un mundo");
-        else if (mc.currentScreen instanceof EditWorldScreen)    rpc.setState("Editando un mundo");
-        else if (mc.currentScreen instanceof ProgressScreen)     rpc.setState("Cargando mundo");
-        else if (mc.currentScreen instanceof MultiplayerScreen)  rpc.setState("Seleccionando un servidor");
-        else if (mc.currentScreen instanceof AddServerScreen)    rpc.setState("Añadiendo un servidor");
-        else if (mc.currentScreen instanceof ConnectScreen)      rpc.setState("Conectandose a un servidor");
-        else if (mc.currentScreen instanceof WidgetScreen)       rpc.setState("Configurando Meteor Client");
-        else if (mc.currentScreen instanceof OptionsScreen
-              || mc.currentScreen instanceof SkinOptionsScreen
-              || mc.currentScreen instanceof SoundOptionsScreen
-              || mc.currentScreen instanceof VideoOptionsScreen
-              || mc.currentScreen instanceof MouseOptionsScreen
-              || mc.currentScreen instanceof KeybindsScreen
-              || mc.currentScreen instanceof LanguageOptionsScreen) rpc.setState("Cambiando ajustes");
-        else if (mc.currentScreen instanceof CreditsScreen)      rpc.setState("En los creditos del juego");
-        else if (mc.currentScreen instanceof RealmsMainScreen)   rpc.setState("Buscando en Realms");
-        else                                                      rpc.setState("En la pantalla inicial");
+        if (mc.currentScreen instanceof TitleScreen) {
+            rpc.setState("En el Menu principal");
+        } else if (mc.currentScreen instanceof SelectWorldScreen) {
+            rpc.setState("Seleccionando mundo");
+        } else if (mc.currentScreen instanceof CreateWorldScreen) {
+            rpc.setState("Creando un mundo");
+        } else if (mc.currentScreen instanceof EditWorldScreen) {
+            rpc.setState("Editando un mundo");
+        } else if (mc.currentScreen instanceof ProgressScreen) {
+            rpc.setState("Cargando mundo");
+        } else if (mc.currentScreen instanceof MultiplayerScreen) {
+            rpc.setState("Seleccionando un servidor");
+        } else if (mc.currentScreen instanceof AddServerScreen) {
+            rpc.setState("Añadiendo un servidor");
+        } else if (mc.currentScreen instanceof ConnectScreen) {
+            rpc.setState("Conectandose a un servidor");
+        } else if (mc.currentScreen instanceof WidgetScreen) {
+            rpc.setState("Configurando Meteor Client");
+        } else if (mc.currentScreen instanceof OptionsScreen
+                || mc.currentScreen instanceof SkinOptionsScreen
+                || mc.currentScreen instanceof SoundOptionsScreen
+                || mc.currentScreen instanceof VideoOptionsScreen
+                || mc.currentScreen instanceof MouseOptionsScreen
+                || mc.currentScreen instanceof KeybindsScreen
+                || mc.currentScreen instanceof LanguageOptionsScreen) {
+            rpc.setState("Cambiando ajustes");
+        } else if (mc.currentScreen instanceof CreditsScreen) {
+            rpc.setState("En los creditos del juego");
+        } else if (mc.currentScreen instanceof RealmsMainScreen) {
+            rpc.setState("Buscando en Realms");
+        } else {
+            rpc.setState("En la pantalla inicial");
+        }
 
         update = true;
     }
@@ -283,18 +288,6 @@ public class xRPC extends Module {
         if (mc.isInSingleplayer()) return "Singleplayer";
         return null;
     }
-
-    private void recompile(List<String> messages, List<Script> scripts) {
-        scripts.clear();
-        for (String msg : messages) {
-            Script script = MeteorStarscript.compile(msg);
-            if (script != null) scripts.add(script);
-        }
-        forceUpdate = true;
-    }
-
-    private void recompileLine1() { recompile((List<String>) line1Strings.get(), line1Scripts); }
-    private void recompileLine2() { recompile((List<String>) line2Strings.get(), line2Scripts); }
 
     @EventHandler
     private void onOpenScreen(OpenScreenEvent event) {
@@ -314,13 +307,18 @@ public class xRPC extends Module {
         private final String key;
         private final String text;
 
-        SmallImage(String key, String text) { this.key = key; this.text = text; }
+        SmallImage(String key, String text) {
+            this.key = key;
+            this.text = text;
+        }
 
-        void apply() { rpc.setSmallImage(key, text); }
+        void apply() {
+            rpc.setSmallImage(key, text);
+        }
 
         SmallImage next() {
             SmallImage[] values = values();
             return values[(ordinal() + 1) % values.length];
         }
     }
-}
+        }
