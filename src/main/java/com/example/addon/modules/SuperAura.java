@@ -107,7 +107,7 @@ public class SuperAura extends Module {
         isSendingAttack = false;
     }
 
-    // Llamado por UltraMace: tp al objetivo, ejecuta acción, vuelve
+    // Llamado por UltraMace — SIN rotate, solo tp y vuelta
     public void teleportToAndBack(Entity target, Runnable action) {
         Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         Vec3d destination = new Vec3d(target.getX(), target.getY(), target.getZ());
@@ -116,16 +116,13 @@ public class SuperAura extends Module {
         double step = Math.min(tpStep.get(), distance);
         int steps = (step <= 0) ? 1 : (int) Math.ceil(distance / step);
 
-        // Ir al objetivo
         for (int i = 1; i <= steps; i++) {
             Vec3d next = origin.lerp(destination, (double) i / steps);
             sendPos(next);
         }
 
-        // Ejecutar acción del xMace (los hits)
         action.run();
 
-        // Volver al origen
         if (teleportBack.get()) {
             sendPos(origin);
         } else {
@@ -140,6 +137,9 @@ public class SuperAura extends Module {
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null || !mc.player.isAlive()) return;
         if (mc.player.getHealth() <= minHealth.get()) { toggle(); return; }
+
+        // Si xMace está activo, el xAura no hace nada — xMace maneja todo
+        if (Modules.get().isActive(UltraMace.class)) return;
 
         long now = System.currentTimeMillis();
         if (now - lastAttackTime < hitDelay.get()) return;
@@ -164,6 +164,7 @@ public class SuperAura extends Module {
     }
 
     private void attackProcess(Entity target) {
+        // Rotate solo cuando xAura ataca por su cuenta, nunca cuando lo llama xMace
         if (rotate.get()) {
             Rotations.rotate(Rotations.getYaw(target), Rotations.getPitch(target),
                 () -> doInfiniteAttack(target));
@@ -180,19 +181,14 @@ public class SuperAura extends Module {
         double step = Math.min(tpStep.get(), distance);
         int steps = (step <= 0) ? 1 : (int) Math.ceil(distance / step);
 
-        // xMace activo — él maneja el tp, nosotros solo atacamos
-        boolean maceActive = Modules.get().isActive(UltraMace.class);
+        for (int i = 1; i <= steps; i++) {
+            Vec3d next = origin.lerp(destination, (double) i / steps);
+            sendPos(next);
+        }
 
-        if (!maceActive) {
-            for (int i = 1; i <= steps; i++) {
-                Vec3d next = origin.lerp(destination, (double) i / steps);
-                sendPos(next);
-            }
-
-            if (critBypass.get()) {
-                sendPos(new Vec3d(destination.x, destination.y + 0.11, destination.z));
-                sendPos(new Vec3d(destination.x, destination.y + 0.1001, destination.z));
-            }
+        if (critBypass.get()) {
+            sendPos(new Vec3d(destination.x, destination.y + 0.11, destination.z));
+            sendPos(new Vec3d(destination.x, destination.y + 0.1001, destination.z));
         }
 
         for (int i = 0; i < packetsPerHit.get(); i++) {
@@ -205,14 +201,12 @@ public class SuperAura extends Module {
 
         if (swing.get()) mc.player.swingHand(Hand.MAIN_HAND);
 
-        if (!maceActive) {
-            if (teleportBack.get()) {
-                sendPos(origin);
-            } else {
-                for (int i = steps - 1; i >= 0; i--) {
-                    Vec3d next = origin.lerp(destination, (double) i / steps);
-                    sendPos(next);
-                }
+        if (teleportBack.get()) {
+            sendPos(origin);
+        } else {
+            for (int i = steps - 1; i >= 0; i--) {
+                Vec3d next = origin.lerp(destination, (double) i / steps);
+                sendPos(next);
             }
         }
     }
