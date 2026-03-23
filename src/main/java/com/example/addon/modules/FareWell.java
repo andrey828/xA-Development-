@@ -86,7 +86,7 @@ public class FareWell extends Module {
 
         String template = messages.get().get(random.nextInt(messages.get().size()));
         
-        // Si quieres diferenciar el mensaje de tótem podrías, pero aquí uso el mismo template
+        // (papoi)Si quieres diferenciar el mensaje de tótem podrías, pero aquí uso el mismo template
         String finalMsg = template.replace("{player}", victimName);
 
         if (antiSpamBypass.get()) {
