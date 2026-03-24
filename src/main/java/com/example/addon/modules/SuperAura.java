@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.StreamSupport;
+//Q miras aki ? nadie te llamo 
 
 public class SuperAura extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
