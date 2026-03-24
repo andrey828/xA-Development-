@@ -1,6 +1,19 @@
 xA Addon – Meteor Client
 
-"xA Logo" (./logo.png)
+<p align="center">
+  <img src="src/main/resources/icon.png" width="200" height="200" alt="xA Addon Logo" style="image-rendering: pixelated; image-rendering: crisp-edges;">
+</p>
+
+<h1 align="center">xA Addon</h1>
+
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Minecraft-1.21.x-green?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/Meteor-Client-yellow?style=for-the-badge" alt="Meteor">
+  <img src="https://img.shields.io/badge/Status-Stable-blue?style=for-the-badge" alt="Status">
+</p>
+
+---
 
 xA Addon es un addon para Meteor Client en Minecraft Java Edition que añade módulos, utilidades y mejoras al cliente.
 Este addon se creó solo para aprender y divertirse, así que no esperes un proyecto profesional todavía. 😄
