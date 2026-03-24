@@ -108,22 +108,10 @@ public class SuperAura extends Module {
         isSendingAttack = false;
     }
 
-    /**
-     * Interfaz funcional para que xMace pase su propio sendPos taggeado con 1337.
-     * Así todos los paquetes de movimiento usan el mismo tag y el filtro de
-     * onSendPacket no los cancela.
-     */
     public interface TaggedPosSender {
         void send(Vec3d pos, boolean onGround);
     }
 
-    /**
-     * Llamado por UltraMace. Hace el TP hacia el objetivo usando el sendPos
-     * taggeado de xMace, ejecuta la acción (hits del mace) y regresa al origen.
-     *
-     * IMPORTANTE: action.run() ya setea isSendingAttack internamente en sendAttack()
-     * de UltraMace, así que aquí NO lo envolvemos para no pisarlo.
-     */
     public void teleportToAndBack(Entity target, Runnable action, TaggedPosSender taggedSendPos) {
         Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         Vec3d destination = new Vec3d(target.getX(), target.getY(), target.getZ());
@@ -132,13 +120,13 @@ public class SuperAura extends Module {
         double step = Math.min(tpStep.get(), distance);
         int steps = (step <= 0) ? 1 : (int) Math.ceil(distance / step);
 
-        // TP hacia el objetivo con paquetes taggeados de xMace
+        // papoi
         for (int i = 1; i <= steps; i++) {
             Vec3d next = origin.lerp(destination, (double) i / steps);
             taggedSendPos.send(next, true);
         }
 
-        // Hits del mace — executeHits usará destination como origen
+        // Hits del mace 
         action.run();
 
         // Regreso al origen
@@ -157,7 +145,6 @@ public class SuperAura extends Module {
         if (mc.player == null || mc.world == null || !mc.player.isAlive()) return;
         if (mc.player.getHealth() <= minHealth.get()) { toggle(); return; }
 
-        // Si xMace está activo, xAura no ataca por su cuenta — xMace lo invoca directamente
         if (Modules.get().isActive(UltraMace.class)) return;
 
         long now = System.currentTimeMillis();
@@ -229,7 +216,6 @@ public class SuperAura extends Module {
         }
     }
 
-    /** sendPos propio de xAura — sin tag 1337, solo para uso independiente */
     public void sendPos(Vec3d pos) {
         mc.player.networkHandler.sendPacket(
             new PlayerMoveC2SPacket.PositionAndOnGround(
