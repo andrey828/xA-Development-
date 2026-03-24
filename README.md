@@ -1,45 +1,99 @@
-<p align="center">
-  <img src="src/main/resources/icon.png" width="200" height="200" alt="xA Addon Logo" style="image-rendering: pixelated; image-rendering: crisp-edges;">
-</p>
+xA Addon – Meteor Client
 
-<h1 align="center">xA Addon</h1>
+"xA Logo" (./logo.png)
 
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Minecraft-1.21.x-green?style=for-the-badge" alt="Version">
-  <img src="https://img.shields.io/badge/Meteor-Client-yellow?style=for-the-badge" alt="Meteor">
-  <img src="https://img.shields.io/badge/Status-Stable-blue?style=for-the-badge" alt="Status">
-</p>
+xA Addon es un addon para Meteor Client en Minecraft Java Edition que añade módulos, utilidades y mejoras al cliente.
+Este addon se creó solo para aprender y divertirse, así que no esperes un proyecto profesional todavía. 😄
+El proyecto está en desarrollo activo y se irá actualizando con nuevas funciones y módulos.
 
 ---
 
-## 🚀 Sobre xA Addon
-**xA Addon** es un complemento de alto rendimiento para **Meteor Client**, desarrollado por **andndrey828 & simxnvoid__**. Este addon está enfocado en combate avanzado y utilidades optimizadas mediante manipulación de paquetes, garantizando una ventaja competitiva sin sacrificar la estabilidad del juego.
+🌐 Website
 
-## 🛠️ Módulos Incluidos
-
-### ⚔️ Combate
-* **UltraMace:** Exploit de maza diseñado para anular defensas y romper tótems instantáneamente.
-* **SuperAura:** KillAura de largo alcance (**400 bloques**) con rotaciones fluidas y bypass de distancia.
-* **SuperTotem:** El AutoTotem definitivo. Funciona sin interrupciones, incluso mientras gestionas tu **inventario** o saqueas cofres.
-
-### 🛡️ Utilidad
-* **Totemguarld:** Protección total contra daños de caída y críticos de maza. Funciona perfectamente en combinación con módulos de vuelo (Fly).
+https://xaddon.netlify.app/
 
 ---
 
-## 📥 Instalación
+📦 Sobre el proyecto
 
-1. Descarga la última versión desde [Releases](https://github.com/abdrey828/xA/releases).
-2. Coloca el archivo `.jar` en tu carpeta de mods (`.minecraft/mods`).
-3. Asegúrate de tener **Meteor Client** actualizado para evitar conflictos.
+xA Addon es un addon hecho para experimentar y aprender a programar addons para Meteor Client.
+El objetivo es divertirse mientras se crean herramientas, módulos y mecánicas que no están en Meteor base.
 
 ---
 
-## 💻 Compilación (Developers)
-Si deseas auditar o compilar el código manualmente:
-```bash
-git clone [https://github.com/abdrey828/xA.git](https://github.com/abdrey828/xA.git)
-cd xA
-./gradlew build
+⚙️ Requisitos
 
+Necesitas tener instalado:
+
+- Minecraft Java Edition
+- Fabric Loader
+- Fabric API
+- Meteor Client
+
+---
+
+📥 Instalación
+
+1. Descarga el archivo ".jar" del addon
+2. Ve a tu carpeta de Minecraft:
+
+.minecraft/mods
+
+3. Pon el archivo ".jar" ahí
+4. Inicia Minecraft con Fabric
+5. Abre Meteor Client
+6. Los módulos de xA aparecerán en el menú
+
+---
+
+✨ Features
+
+- Módulos nuevos
+- Utilities
+- Render modules
+- Movement modules
+- Combat modules
+- Misc modules
+- Sistema de configuración
+- Actualizaciones frecuentes
+
+«⚠️ Recuerda: este addon es experimental, creado para aprender y divertirse. No está optimizado al 100%.»
+
+---
+
+🛠️ Desarrollo
+
+El addon está desarrollado por xA Development.
+Puede haber bugs o cambios grandes entre versiones, ¡es parte de la diversión! 😎
+
+Si quieres contribuir:
+
+1. Haz Fork
+2. Crea una branch
+3. Haz tus cambios
+4. Pull Request
+
+---
+
+👨‍💻 Autores
+
+Andrey / xA Development
+simxnvoid___
+
+GitHub:
+https://github.com/andrey828
+
+Website:
+https://xaddon.netlify.app/
+
+---
+
+📄 License
+
+MIT License
+
+---
+
+xA Development
+
+Addon development for Meteor Client – hecho para aprender y divertirse.
