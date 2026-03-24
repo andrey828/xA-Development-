@@ -18,7 +18,7 @@ import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.util.math.Vec3d;
 
-import java.lang.reflect.Field; 
+import java.lang.reflect.Field;
 
 public class UltraMace extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -57,24 +57,20 @@ public class UltraMace extends Module {
             event.cancel();
             isWorking = true;
 
-            
             int oldSlot = 0;
             try {
-                
                 Field field = mc.player.getInventory().getClass().getDeclaredField("selectedSlot");
                 field.setAccessible(true);
                 oldSlot = field.getInt(mc.player.getInventory());
             } catch (Exception e) {
                 try {
-                    
                     Field field = mc.player.getInventory().getClass().getDeclaredField("field_7545");
                     field.setAccessible(true);
                     oldSlot = field.getInt(mc.player.getInventory());
                 } catch (Exception ex) {
-                    oldSlot = 0; 
+                    oldSlot = 0;
                 }
             }
-            // -----------------------------------------------------------
 
             int maceSlot = -1;
             if (autoSwitch.get()) {
@@ -86,5 +82,46 @@ public class UltraMace extends Module {
                 }
             }
 
-            if (maceSlot != -1) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot
-                                                                                                  
+            if (maceSlot != -1) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
+
+            SuperAura aura = Modules.get().get(SuperAura.class);
+            if (aura != null && aura.isActive()) {
+                Vec3d targetPos = new Vec3d(target.getX(), target.getY(), target.getZ());
+                aura.teleportToAndBack(target, () -> executeHits(target, targetPos), (pos, onGround) -> sendPos(pos.x, pos.y, pos.z, onGround));
+            } else {
+                Vec3d playerPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+                executeHits(target, playerPos);
+            }
+
+            if (maceSlot != -1) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
+            
+            isWorking = false;
+        }
+    }
+
+    private void executeHits(Entity target, Vec3d origin) {
+        lerpUpDown(origin, fallHeight.get());
+        sendAttack(target);
+    }
+
+    private void lerpUpDown(Vec3d origin, int height) {
+        Vec3d top = origin.add(0, height, 0);
+        sendPos(top.x, top.y, top.z, false);
+        sendPos(origin.x, origin.y, origin.z, true);
+    }
+
+    private void sendAttack(Entity target) {
+        try {
+            SuperAura.isSendingAttack = true;
+            mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
+        } finally {
+            SuperAura.isSendingAttack = false;
+        }
+    }
+
+    private void sendPos(double x, double y, double z, boolean onGround) {
+        PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, onGround, false);
+        ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
+        mc.getNetworkHandler().sendPacket(p);
+    }
+}
