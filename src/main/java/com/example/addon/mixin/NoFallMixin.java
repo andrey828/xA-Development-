@@ -11,12 +11,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value = LivingEntity.class, priority = 900)
 public class NoFallMixin {
 
-    // Para 1.21.6+ (sin DamageSource)
     @Inject(
         method = "handleFallDamage(FF)Z",
         at = @At("HEAD"),
         cancellable = true,
-        require = 0 // No crashea si no encuentra el método
+        require = 0 
     )
     private void cancelFallDamageNew(float fallDistance, float damageMultiplier,
                                       CallbackInfoReturnable<Boolean> cir) {
@@ -28,12 +27,11 @@ public class NoFallMixin {
         }
     }
 
-    // Para 1.21.4 y 1.21.5 (con DamageSource)
     @Inject(
         method = "handleFallDamage(FFLnet/minecraft/entity/damage/DamageSource;)Z",
         at = @At("HEAD"),
         cancellable = true,
-        require = 0 // No crashea si no encuentra el método
+        require = 0 
     )
     private void cancelFallDamageLegacy(float fallDistance, float damageMultiplier,
                                          net.minecraft.entity.damage.DamageSource source,
