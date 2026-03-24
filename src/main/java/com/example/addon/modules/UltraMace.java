@@ -39,26 +39,33 @@ public class UltraMace extends Module {
             if (!String.valueOf(accessor.meteor$getType()).contains("ATTACK")) return;
 
             Entity entity = accessor.meteor$getEntity();
-            if (!(entity instanceof LivingEntity target) || (target instanceof PlayerEntity p && Friends.get().isFriend(p))) return;
+            if (!(entity instanceof LivingEntity target)) return;
+            if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
 
             event.cancel();
             isWorking = true;
 
+            int oldSlot = mc.player.getInventory().selectedSlot;
             int maceSlot = -1;
             if (autoSwitch.get()) {
-                for (int i = 0; i < 9; i++) if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) { maceSlot = i; break; }
+                for (int i = 0; i < 9; i++) {
+                    if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) { maceSlot = i; break; }
+                }
             }
 
             if (maceSlot != -1) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
 
             SuperAura aura = Modules.get().get(SuperAura.class);
             if (aura != null && aura.isActive()) {
-                aura.teleportToAndBack(target, () -> executeHits(target, target.getPos()), (pos, onGround) -> sendPos(pos.x, pos.y, pos.z, onGround));
+                
+                Vec3d targetPos = new Vec3d(target.getX(), target.getY(), target.getZ());
+                aura.teleportToAndBack(target, () -> executeHits(target, targetPos), (pos, onGround) -> sendPos(pos.x, pos.y, pos.z, onGround));
             } else {
-                executeHits(target, mc.player.getPos());
+                Vec3d playerPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+                executeHits(target, playerPos);
             }
 
-            if (maceSlot != -1) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(mc.player.getInventory().selectedSlot));
+            if (maceSlot != -1) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
             isWorking = false;
         }
     }
