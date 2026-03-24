@@ -125,7 +125,13 @@ public class UltraMace extends Module {
             boolean auraActive = aura != null && aura.isActive();
 
             if (auraActive) {
-                aura.teleportToAndBack(target, () -> executeHits(target, origin));
+                // xAura hace el TP usando nuestro sendPos taggeado con 1337,
+                // y llama a executeHits desde la posición del objetivo (destination)
+                aura.teleportToAndBack(
+                    target,
+                    () -> executeHits(target, new Vec3d(target.getX(), target.getY(), target.getZ())),
+                    (pos, onGround) -> sendPos(pos.x, pos.y, pos.z, onGround)
+                );
             } else {
                 executeHits(target, origin);
             }
@@ -197,11 +203,14 @@ public class UltraMace extends Module {
     }
 
     private void sendAttack(Entity target) {
-        SuperAura.isSendingAttack = true;
-        mc.getNetworkHandler().sendPacket(
-            PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking())
-        );
-        SuperAura.isSendingAttack = false;
+        try {
+            SuperAura.isSendingAttack = true;
+            mc.getNetworkHandler().sendPacket(
+                PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking())
+            );
+        } finally {
+            SuperAura.isSendingAttack = false;
+        }
     }
 
     private void sendPos(double x, double y, double z, boolean onGround) {
