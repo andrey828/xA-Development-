@@ -106,7 +106,6 @@ public class xArmor extends Module {
         // Elytra tiene prioridad si no hay pechera mejor
         if (stack.getItem() == Items.ELYTRA) score = 10;
 
-        // Enchantment Score usando Utils de Meteor (compatible con 1.21+)
         score += Utils.getEnchantmentLevel(stack, Enchantments.PROTECTION) * 1.5f;
         score += Utils.getEnchantmentLevel(stack, Enchantments.MENDING) * 1.0f;
         score += Utils.getEnchantmentLevel(stack, Enchantments.UNBREAKING) * 0.2f;
