@@ -20,7 +20,6 @@ import net.minecraft.client.gui.screen.multiplayer.ConnectScreen;
 import net.minecraft.client.gui.screen.multiplayer.MultiplayerScreen;
 import net.minecraft.client.gui.screen.option.*;
 import net.minecraft.client.gui.screen.world.CreateWorldScreen;
-import net.minecraft.client.gui.screen.world.EditWorldScreen;
 import net.minecraft.client.gui.screen.world.SelectWorldScreen;
 import net.minecraft.client.realms.gui.screen.RealmsMainScreen;
 import net.minecraft.util.Util;
@@ -35,64 +34,24 @@ public class xRPC extends Module {
     private final Setting<List<String>> line1Strings = sgGeneral.add(
         new StringListSetting.Builder()
             .name("line-1-messages")
-            .description("Messages used for the first line.")
             .defaultValue(List.of("xA Addon on top", "xA Development"))
-            .build()
-    );
-
-    private final Setting<Integer> line1UpdateDelay = sgGeneral.add(
-        new IntSetting.Builder()
-            .name("line-1-update-delay")
-            .description("How fast to update the first line in ticks.")
-            .defaultValue(60).min(10).sliderRange(10, 200)
-            .build()
-    );
-
-    private final Setting<DiscordPresence.SelectMode> line1SelectMode = sgGeneral.add(
-        new EnumSetting.Builder<DiscordPresence.SelectMode>()
-            .name("line-1-select-mode")
-            .description("How to select messages for the first line.")
-            .defaultValue(DiscordPresence.SelectMode.Sequential)
             .build()
     );
 
     private final Setting<List<String>> line2Strings = sgGeneral.add(
         new StringListSetting.Builder()
             .name("line-2-messages")
-            .description("Messages used for the second line.")
             .defaultValue(List.of("Using xA modules", "Best Addon"))
-            .build()
-    );
-
-    private final Setting<Integer> line2UpdateDelay = sgGeneral.add(
-        new IntSetting.Builder()
-            .name("line-2-update-delay")
-            .description("How fast to update the second line in ticks.")
-            .defaultValue(60).min(10).sliderRange(10, 200)
-            .build()
-    );
-
-    private final Setting<DiscordPresence.SelectMode> line2SelectMode = sgGeneral.add(
-        new EnumSetting.Builder<DiscordPresence.SelectMode>()
-            .name("line-2-select-mode")
-            .description("How to select messages for the second line.")
-            .defaultValue(DiscordPresence.SelectMode.Sequential)
             .build()
     );
 
     private static final RichPresence rpc = new RichPresence();
 
     private SmallImage currentSmallImage;
-    private int ticks;
-    private boolean forceUpdate;
-    private boolean lastWasInMainMenu;
-    private int line1Ticks, line1I;
-    private int line2Ticks, line2I;
-    public boolean update;
-
     private boolean ipcConnected = false;
     private int retryTicks = 0;
-    private static final int RETRY_INTERVAL = 200;
+    private static final int RETRY_INTERVAL = 60;
+    private boolean autoStarted = false;
 
     public xRPC() {
         super(AddonTemplate.CATEGORY, "xRPC", "Discord Rich Presence for xA.");
@@ -101,15 +60,7 @@ public class xRPC extends Module {
 
     @Override
     public void onActivate() {
-        ipcConnected = false;
-        retryTicks = RETRY_INTERVAL;
-        ticks = 0;
-        line1Ticks = 0;
-        line2Ticks = 0;
-        lastWasInMainMenu = false;
-        line1I = 0;
-        line2I = 0;
-        forceUpdate = true;
+        tryConnect();
     }
 
     @Override
@@ -121,55 +72,74 @@ public class xRPC extends Module {
     }
 
     private void tryConnect() {
-        patchDiscordIPC();
-        try {
-            DiscordIPC.start(1483491540784644377L, null);
-            rpc.setStart(System.currentTimeMillis() / 1000L);
-            rpc.setLargeImage("25565", "xA Addon");
-            currentSmallImage = SmallImage.Logo;
-            currentSmallImage.apply();
-            forceUpdate = true;
-            ipcConnected = true;
-        } catch (Exception ignored) {
-            ipcConnected = false;
-        }
+        new Thread(() -> {
+            patchDiscordIPC();
+            try {
+                DiscordIPC.start(1483491540784644377L, () -> {
+                    rpc.setStart(System.currentTimeMillis() / 1000L);
+                    rpc.setLargeImage("25565", "xA Addon");
+
+                    currentSmallImage = SmallImage.Logo;
+                    currentSmallImage.apply();
+
+                    ipcConnected = true;
+                    updateRPC();
+                });
+
+                DiscordIPC.onDisconnect(() -> {
+                    ipcConnected = false;
+                    retryTicks = 0;
+                });
+
+            } catch (Exception e) {
+                ipcConnected = false;
+            }
+        }, "xRPC-IPC").start();
     }
 
     private void patchDiscordIPC() {
         String os = System.getProperty("os.name").toLowerCase();
 
         if (os.contains("win")) {
-            String localAppData = System.getenv("LOCALAPPDATA");
-            String appData = System.getenv("APPDATA");
-            String userProfile = System.getenv("USERPROFILE");
-
-            if (localAppData == null && userProfile != null) {
-                System.setProperty("user.home", userProfile);
-            }
-            if (appData == null && userProfile != null) {
-                String reconstructed = userProfile + "\\AppData\\Roaming";
-                if (new File(reconstructed).exists()) {
-                    System.setProperty("appdata", reconstructed);
-                }
-            }
-        } else {
-            String[] searchDirs = {
-                System.getenv("XDG_RUNTIME_DIR"),
-                "/tmp",
-                "/run/user/1000",
-                System.getenv("XDG_RUNTIME_DIR") != null
-                    ? System.getenv("XDG_RUNTIME_DIR") + "/app/com.discordapp.Discord"
-                    : null,
-                "/tmp/snap.discord",
-                System.getProperty("java.io.tmpdir")
+            String[] paths = {
+                System.getenv("LOCALAPPDATA"),
+                System.getenv("APPDATA"),
+                System.getenv("USERPROFILE") + "\\AppData\\Roaming",
+                System.getenv("USERPROFILE") + "\\AppData\\Local",
+                "C:\\Windows\\Temp"
             };
 
-            for (String dir : searchDirs) {
-                if (dir == null) continue;
+            for (String path : paths) {
+                if (path == null) continue;
+                File dir = new File(path);
+                if (!dir.exists()) continue;
+
                 for (int i = 0; i <= 9; i++) {
                     File pipe = new File(dir, "discord-ipc-" + i);
                     if (pipe.exists()) {
-                        System.setProperty("java.io.tmpdir", dir);
+                        System.setProperty("java.io.tmpdir", path);
+                        return;
+                    }
+                }
+            }
+        } else {
+            String[] paths = {
+                System.getenv("XDG_RUNTIME_DIR"),
+                "/run/user/1000",
+                "/tmp",
+                "/var/tmp",
+                System.getProperty("java.io.tmpdir")
+            };
+
+            for (String path : paths) {
+                if (path == null) continue;
+                File dir = new File(path);
+                if (!dir.exists()) continue;
+
+                for (int i = 0; i <= 9; i++) {
+                    File pipe = new File(dir, "discord-ipc-" + i);
+                    if (pipe.exists()) {
+                        System.setProperty("java.io.tmpdir", path);
                         return;
                     }
                 }
@@ -179,126 +149,45 @@ public class xRPC extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
+
+        if (!autoStarted) {
+            autoStarted = true;
+            if (!this.isActive()) this.toggle();
+        }
+
         if (!ipcConnected) {
-            if (retryTicks < RETRY_INTERVAL) {
-                retryTicks++;
-                return;
+            retryTicks++;
+            if (retryTicks >= RETRY_INTERVAL) {
+                retryTicks = 0;
+                tryConnect();
             }
-            retryTicks = 0;
-            tryConnect();
             return;
         }
 
-        update = false;
-
-        if (ticks < 200 && !forceUpdate) {
-            ticks++;
-        } else {
-            currentSmallImage = currentSmallImage.next();
-            currentSmallImage.apply();
-            update = true;
-            ticks = 0;
-        }
-
-        if (Utils.canUpdate()) {
-            handleLines();
-        } else if (!lastWasInMainMenu) {
-            handleScreens();
-        }
-
-        if (update) {
-            try {
-                DiscordIPC.setActivity(rpc);
-            } catch (Exception e) {
-                ipcConnected = false;
-                retryTicks = 0;
-                try { DiscordIPC.stop(); } catch (Exception ignored) {}
-            }
-        }
-
-        forceUpdate = false;
-        lastWasInMainMenu = !Utils.canUpdate();
+        DiscordIPC.runCallbacks();
+        updateRPC();
     }
 
-    private void handleLines() {
-        List<String> l1 = line1Strings.get();
-        List<String> l2 = line2Strings.get();
-
-        if (line1Ticks < line1UpdateDelay.get() && !forceUpdate) {
-            line1Ticks++;
+    private void updateRPC() {
+        if (mc.player == null) {
+            rpc.setDetails("xA Addon");
+            rpc.setState("En el menu");
         } else {
-            if (!l1.isEmpty()) {
-                int i;
-                if (line1SelectMode.get() == DiscordPresence.SelectMode.Sequential) {
-                    if (line1I >= l1.size()) line1I = 0;
-                    i = line1I++;
-                } else {
-                    i = Utils.random(0, l1.size());
-                }
-                rpc.setDetails(l1.get(i));
+            rpc.setDetails(line1Strings.get().get(0));
+
+            String server = getServerName();
+            if (server != null) {
+                rpc.setState(line2Strings.get().get(0) + " | " + server);
+            } else {
+                rpc.setState(line2Strings.get().get(0));
             }
-            update = true;
-            line1Ticks = 0;
         }
 
-        if (line2Ticks < line2UpdateDelay.get() && !forceUpdate) {
-            line2Ticks++;
-        } else {
-            if (!l2.isEmpty()) {
-                int i;
-                if (line2SelectMode.get() == DiscordPresence.SelectMode.Sequential) {
-                    if (line2I >= l2.size()) line2I = 0;
-                    i = line2I++;
-                } else {
-                    i = Utils.random(0, l2.size());
-                }
-                String server = getServerName();
-                String msg = l2.get(i);
-                rpc.setState(server != null ? msg + " | " + server : msg);
-            }
-            update = true;
-            line2Ticks = 0;
+        try {
+            DiscordIPC.setActivity(rpc);
+        } catch (Exception e) {
+            ipcConnected = false;
         }
-    }
-
-    public void handleScreens() {
-        rpc.setDetails("xA Addon");
-
-        if (mc.currentScreen instanceof TitleScreen) {
-            rpc.setState("En el Menu principal");
-        } else if (mc.currentScreen instanceof SelectWorldScreen) {
-            rpc.setState("Seleccionando mundo");
-        } else if (mc.currentScreen instanceof CreateWorldScreen) {
-            rpc.setState("Creando un mundo");
-        } else if (mc.currentScreen instanceof EditWorldScreen) {
-            rpc.setState("Editando un mundo");
-        } else if (mc.currentScreen instanceof ProgressScreen) {
-            rpc.setState("Cargando mundo");
-        } else if (mc.currentScreen instanceof MultiplayerScreen) {
-            rpc.setState("Seleccionando un servidor");
-        } else if (mc.currentScreen instanceof AddServerScreen) {
-            rpc.setState("Añadiendo un servidor");
-        } else if (mc.currentScreen instanceof ConnectScreen) {
-            rpc.setState("Conectandose a un servidor");
-        } else if (mc.currentScreen instanceof WidgetScreen) {
-            rpc.setState("Configurando Meteor Client");
-        } else if (mc.currentScreen instanceof OptionsScreen
-                || mc.currentScreen instanceof SkinOptionsScreen
-                || mc.currentScreen instanceof SoundOptionsScreen
-                || mc.currentScreen instanceof VideoOptionsScreen
-                || mc.currentScreen instanceof MouseOptionsScreen
-                || mc.currentScreen instanceof KeybindsScreen
-                || mc.currentScreen instanceof LanguageOptionsScreen) {
-            rpc.setState("Cambiando ajustes");
-        } else if (mc.currentScreen instanceof CreditsScreen) {
-            rpc.setState("En los creditos del juego");
-        } else if (mc.currentScreen instanceof RealmsMainScreen) {
-            rpc.setState("Buscando en Realms");
-        } else {
-            rpc.setState("En la pantalla inicial");
-        }
-
-        update = true;
     }
 
     private String getServerName() {
@@ -309,7 +198,7 @@ public class xRPC extends Module {
 
     @EventHandler
     private void onOpenScreen(OpenScreenEvent event) {
-        if (!Utils.canUpdate()) lastWasInMainMenu = false;
+        updateRPC();
     }
 
     @Override
@@ -333,11 +222,5 @@ public class xRPC extends Module {
         void apply() {
             rpc.setSmallImage(key, text);
         }
-
-        SmallImage next() {
-            SmallImage[] values = values();
-            return values[(ordinal() + 1) % values.length];
-        }
     }
-                }
-                   
+}
