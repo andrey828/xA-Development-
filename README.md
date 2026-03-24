@@ -63,10 +63,8 @@ Necesitas tener instalado:
 
 - Módulos nuevos
 - Utilities
-- Render modules
 - Movement modules
 - Combat modules
-- Misc modules
 - Sistema de configuración
 - Actualizaciones frecuentes
 
