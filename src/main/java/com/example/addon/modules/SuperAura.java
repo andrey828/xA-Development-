@@ -107,8 +107,23 @@ public class SuperAura extends Module {
         isSendingAttack = false;
     }
 
-    // Llamado por UltraMace — SIN rotate, solo tp y vuelta
-    public void teleportToAndBack(Entity target, Runnable action) {
+    /**
+     * Interfaz funcional para que xMace pase su propio sendPos taggeado con 1337.
+     * Así todos los paquetes de movimiento usan el mismo tag y el filtro de
+     * onSendPacket no los cancela.
+     */
+    public interface TaggedPosSender {
+        void send(Vec3d pos, boolean onGround);
+    }
+
+    /**
+     * Llamado por UltraMace. Hace el TP hacia el objetivo usando el sendPos
+     * taggeado de xMace, ejecuta la acción (hits del mace) y regresa al origen.
+     *
+     * IMPORTANTE: action.run() ya setea isSendingAttack internamente en sendAttack()
+     * de UltraMace, así que aquí NO lo envolvemos para no pisarlo.
+     */
+    public void teleportToAndBack(Entity target, Runnable action, TaggedPosSender taggedSendPos) {
         Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         Vec3d destination = new Vec3d(target.getX(), target.getY(), target.getZ());
 
@@ -116,19 +131,22 @@ public class SuperAura extends Module {
         double step = Math.min(tpStep.get(), distance);
         int steps = (step <= 0) ? 1 : (int) Math.ceil(distance / step);
 
+        // TP hacia el objetivo con paquetes taggeados de xMace
         for (int i = 1; i <= steps; i++) {
             Vec3d next = origin.lerp(destination, (double) i / steps);
-            sendPos(next);
+            taggedSendPos.send(next, true);
         }
 
+        // Hits del mace — executeHits usará destination como origen
         action.run();
 
+        // Regreso al origen
         if (teleportBack.get()) {
-            sendPos(origin);
+            taggedSendPos.send(origin, true);
         } else {
             for (int i = steps - 1; i >= 0; i--) {
                 Vec3d next = origin.lerp(destination, (double) i / steps);
-                sendPos(next);
+                taggedSendPos.send(next, true);
             }
         }
     }
@@ -138,7 +156,7 @@ public class SuperAura extends Module {
         if (mc.player == null || mc.world == null || !mc.player.isAlive()) return;
         if (mc.player.getHealth() <= minHealth.get()) { toggle(); return; }
 
-        // Si xMace está activo, el xAura no hace nada — xMace maneja todo
+        // Si xMace está activo, xAura no ataca por su cuenta — xMace lo invoca directamente
         if (Modules.get().isActive(UltraMace.class)) return;
 
         long now = System.currentTimeMillis();
@@ -150,13 +168,10 @@ public class SuperAura extends Module {
                 .toList();
 
             if (targets.isEmpty()) return;
-
             targets.forEach(this::attackProcess);
         } else {
             Entity target = findTarget();
-
             if (target == null) return;
-
             attackProcess(target);
         }
 
@@ -164,7 +179,6 @@ public class SuperAura extends Module {
     }
 
     private void attackProcess(Entity target) {
-        // Rotate solo cuando xAura ataca por su cuenta, nunca cuando lo llama xMace
         if (rotate.get()) {
             Rotations.rotate(Rotations.getYaw(target), Rotations.getPitch(target),
                 () -> doInfiniteAttack(target));
@@ -192,11 +206,14 @@ public class SuperAura extends Module {
         }
 
         for (int i = 0; i < packetsPerHit.get(); i++) {
-            isSendingAttack = true;
-            mc.player.networkHandler.sendPacket(
-                PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking())
-            );
-            isSendingAttack = false;
+            try {
+                isSendingAttack = true;
+                mc.player.networkHandler.sendPacket(
+                    PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking())
+                );
+            } finally {
+                isSendingAttack = false;
+            }
         }
 
         if (swing.get()) mc.player.swingHand(Hand.MAIN_HAND);
@@ -211,6 +228,7 @@ public class SuperAura extends Module {
         }
     }
 
+    /** sendPos propio de xAura — sin tag 1337, solo para uso independiente */
     public void sendPos(Vec3d pos) {
         mc.player.networkHandler.sendPacket(
             new PlayerMoveC2SPacket.PositionAndOnGround(
@@ -256,4 +274,5 @@ public class SuperAura extends Module {
             .min(Comparator.comparingDouble(e -> mc.player.squaredDistanceTo(e)))
             .orElse(null);
     }
-}
+                    }
+                 
