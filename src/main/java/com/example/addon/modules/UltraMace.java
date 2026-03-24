@@ -1,127 +1,159 @@
 package com.example.addon.modules;
 
 import com.example.addon.AddonTemplate;
-import meteordevelopment.meteorclient.events.packets.PacketEvent;
-import meteordevelopment.meteorclient.mixininterface.IPlayerInteractEntityC2SPacket;
-import meteordevelopment.meteorclient.mixininterface.IPlayerMoveC2SPacket;
+import meteordevelopment.discordipc.DiscordIPC;
+import meteordevelopment.discordipc.RichPresence;
+import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.gui.GuiTheme;
+import meteordevelopment.meteorclient.gui.widgets.WWidget;
+import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
 import meteordevelopment.meteorclient.settings.*;
-import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.Util;
 
-import java.lang.reflect.Field;
+import java.io.File;
+import java.util.List;
 
-public class UltraMace extends Module {
+public class xRPC extends Module {
+
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
-    private final Setting<Integer> fallHeight = sgGeneral.add(new IntSetting.Builder()
-        .name("Mace Power")
-        .defaultValue(23)
-        .min(1)
-        .sliderRange(1, 255)
-        .build());
 
-    private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder()
-        .name("Auto Switch")
-        .defaultValue(true)
-        .build());
+    private final Setting<List<String>> line1Strings = sgGeneral.add(
+        new StringListSetting.Builder()
+            .name("line-1-messages")
+            .defaultValue(List.of("xA Addon on top"))
+            .build()
+    );
 
-    private boolean isWorking = false;
+    private final Setting<List<String>> line2Strings = sgGeneral.add(
+        new StringListSetting.Builder()
+            .name("line-2-messages")
+            .defaultValue(List.of("Using xA Addon"))
+            .build()
+    );
 
-    public UltraMace() {
-        super(AddonTemplate.CATEGORY, "xMace", "Máximo poder del mazo con Infinite Reach.");
+    private static final RichPresence rpc = new RichPresence();
+
+    private boolean ipcConnected = false;
+    private int retryTicks = 0;
+    private static final int RETRY_INTERVAL = 100;
+    private boolean autoStarted = false;
+
+    public xRPC() {
+        super(AddonTemplate.CATEGORY, "xRPC", "Discord Rich Presence for xA.");
+        runInMainMenu = true;
+    }
+
+    @Override
+    public void onActivate() {
+        connectIPC();
+    }
+
+    @Override
+    public void onDeactivate() {
+        try {
+            DiscordIPC.stop();
+        } catch (Exception ignored) {}
+        ipcConnected = false;
+    }
+
+    private void connectIPC() {
+        try {
+            patchDiscordIPC();
+            DiscordIPC.start(1483491540784644377L, null);
+
+            rpc.setStart(System.currentTimeMillis() / 1000L);
+            rpc.setLargeImage("25565", "xA Addon");
+
+            ipcConnected = true;
+            updateRPC();
+
+        } catch (Exception e) {
+            ipcConnected = false;
+        }
+    }
+
+    private void patchDiscordIPC() {
+        String[] paths = {
+            System.getenv("LOCALAPPDATA"),
+            System.getenv("APPDATA"),
+            System.getenv("USERPROFILE"),
+            "/run/user/1000",
+            "/tmp",
+            System.getProperty("java.io.tmpdir")
+        };
+
+        for (String path : paths) {
+            if (path == null) continue;
+            File dir = new File(path);
+            if (!dir.exists()) continue;
+
+            for (int i = 0; i <= 9; i++) {
+                File pipe = new File(dir, "discord-ipc-" + i);
+                if (pipe.exists()) {
+                    System.setProperty("java.io.tmpdir", path);
+                    return;
+                }
+            }
+        }
     }
 
     @EventHandler
-    private void onSendPacket(PacketEvent.Send event) {
-        if (mc.player == null || mc.getNetworkHandler() == null || isWorking) return;
+    private void onTick(TickEvent.Post event) {
 
-        if (event.packet instanceof IPlayerMoveC2SPacket move && move.meteor$getTag() == 1337) return;
+        // Auto start module when Minecraft starts
+        if (!autoStarted) {
+            autoStarted = true;
+            if (!this.isActive()) this.toggle();
+        }
 
-        if (event.packet instanceof PlayerInteractEntityC2SPacket packet) {
-            IPlayerInteractEntityC2SPacket accessor = (IPlayerInteractEntityC2SPacket) packet;
-            if (!String.valueOf(accessor.meteor$getType()).contains("ATTACK")) return;
-
-            Entity entity = accessor.meteor$getEntity();
-            if (!(entity instanceof LivingEntity target)) return;
-            if (target instanceof PlayerEntity player && Friends.get().isFriend(player)) return;
-
-            event.cancel();
-            isWorking = true;
-
-            int oldSlot = 0;
-            try {
-                Field field = mc.player.getInventory().getClass().getDeclaredField("selectedSlot");
-                field.setAccessible(true);
-                oldSlot = field.getInt(mc.player.getInventory());
-            } catch (Exception e) {
-                try {
-                    Field field = mc.player.getInventory().getClass().getDeclaredField("field_7545");
-                    field.setAccessible(true);
-                    oldSlot = field.getInt(mc.player.getInventory());
-                } catch (Exception ex) {
-                    oldSlot = 0;
-                }
+        // Retry connection
+        if (!ipcConnected) {
+            retryTicks++;
+            if (retryTicks >= RETRY_INTERVAL) {
+                retryTicks = 0;
+                connectIPC();
             }
+            return;
+        }
 
-            int maceSlot = -1;
-            if (autoSwitch.get()) {
-                for (int i = 0; i < 9; i++) {
-                    if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) {
-                        maceSlot = i;
-                        break;
-                    }
-                }
-            }
+        updateRPC();
+    }
 
-            if (maceSlot != -1) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
+    private void updateRPC() {
+        if (mc.player == null) {
+            rpc.setDetails("xA Addon");
+            rpc.setState("En el menu");
+        } else {
+            rpc.setDetails(line1Strings.get().get(0));
 
-            SuperAura aura = Modules.get().get(SuperAura.class);
-            if (aura != null && aura.isActive()) {
-                Vec3d targetPos = new Vec3d(target.getX(), target.getY(), target.getZ());
-                aura.teleportToAndBack(target, () -> executeHits(target, targetPos), (pos, onGround) -> sendPos(pos.x, pos.y, pos.z, onGround));
+            String server = getServerName();
+            if (server != null) {
+                rpc.setState(line2Strings.get().get(0) + " | " + server);
             } else {
-                Vec3d playerPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
-                executeHits(target, playerPos);
+                rpc.setState(line2Strings.get().get(0));
             }
-
-            if (maceSlot != -1) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
-            
-            isWorking = false;
         }
-    }
 
-    private void executeHits(Entity target, Vec3d origin) {
-        lerpUpDown(origin, fallHeight.get());
-        sendAttack(target);
-    }
-
-    private void lerpUpDown(Vec3d origin, int height) {
-        Vec3d top = origin.add(0, height, 0);
-        sendPos(top.x, top.y, top.z, false);
-        sendPos(origin.x, origin.y, origin.z, true);
-    }
-
-    private void sendAttack(Entity target) {
         try {
-            SuperAura.isSendingAttack = true;
-            mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
-        } finally {
-            SuperAura.isSendingAttack = false;
+            DiscordIPC.setActivity(rpc);
+        } catch (Exception e) {
+            ipcConnected = false;
         }
     }
 
-    private void sendPos(double x, double y, double z, boolean onGround) {
-        PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, onGround, false);
-        ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
-        mc.getNetworkHandler().sendPacket(p);
+    private String getServerName() {
+        if (mc.getCurrentServerEntry() != null) return mc.getCurrentServerEntry().address;
+        if (mc.isInSingleplayer()) return "Singleplayer";
+        return null;
+    }
+
+    @Override
+    public WWidget getWidget(GuiTheme theme) {
+        WButton btn = theme.button("Join xA Discord");
+        btn.action = () -> Util.getOperatingSystem().open("https://discord.gg/8ezp4sthqG");
+        return btn;
     }
 }
