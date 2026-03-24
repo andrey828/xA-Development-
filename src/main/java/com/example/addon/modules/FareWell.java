@@ -54,7 +54,6 @@ public class FareWell extends Module {
     private final Random random = new Random();
 
     public FareWell() {
-        // Nombre cambiado a xAutoez como pediste
         super(AddonTemplate.CATEGORY, "xAutoez", "Envia mensajes  cuando alguien muere o rompe tótem cerca.");
     }
 
@@ -86,7 +85,7 @@ public class FareWell extends Module {
 
         String template = messages.get().get(random.nextInt(messages.get().size()));
         
-        // (papoi)Si quieres diferenciar el mensaje de tótem podrías, pero aquí uso el mismo template
+        // papoi q lees esto?
         String finalMsg = template.replace("{player}", victimName);
 
         if (antiSpamBypass.get()) {
