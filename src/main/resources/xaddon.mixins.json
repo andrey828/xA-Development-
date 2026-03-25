@@ -4,7 +4,9 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "NoFallMixin",
-    "accessor.PlayerMoveC2SPacketAccessor"
+    "accessor.PlayerMoveC2SPacketAccessor",
+    "EntityMixin",
+    "ClientPlayerInteractionManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1
