@@ -26,6 +26,10 @@ public class UltraMace extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgExtra = settings.createGroup("Extra Heights (Max Power)");
 
+    private final Setting<Integer> blocksPerPacket = sgGeneral.add(new IntSetting.Builder()
+        .name("Blocks Per Packet").description("A mayor número, menos paquetes usa. (20-30 es muy seguro)")
+        .defaultValue(20).min(5).sliderRange(10, 100).build());
+
     private final Setting<Integer> fallHeight = sgGeneral.add(new IntSetting.Builder()
         .name("Mace Power").description("Altura del golpe principal.")
         .defaultValue(23).min(1).sliderRange(1, 1000).build());
@@ -62,7 +66,7 @@ public class UltraMace extends Module {
     private boolean isWorking = false;
 
     public UltraMace() {
-        super(AddonTemplate.CATEGORY, "xMace", "Maximum Mace Power - No Limits.");
+        super(AddonTemplate.CATEGORY, "xMace", "Maximum Mace Power - Low Packets.");
 
         for (int i = 1; i <= 30; i++) {
             int finalI = i;
@@ -131,7 +135,6 @@ public class UltraMace extends Module {
             boolean auraActive = aura != null && aura.isActive();
 
             if (auraActive) {
-                // CORRECCIÓN: Añadido el tercer parámetro que pide SuperAura para enviar la posición.
                 aura.teleportToAndBack(target, () -> executeHits(target, origin), (pos, onGround) -> sendPos(pos.x, pos.y, pos.z, onGround));
             } else {
                 executeHits(target, origin);
@@ -152,18 +155,12 @@ public class UltraMace extends Module {
 
         if (alwaysTF.get()) {
             for (int i = 0; i < hitAmount.get(); i++) {
-                lerpUpDown(px, py, pz, attack1.get());
-                sendAttack(target);
-
-                lerpUpDown(px, py, pz, attack2.get());
-                sendAttack(target);
-
-                lerpUpDown(px, py, pz, attack2.get());
-                sendAttack(target);
+                performOptimizedHit(target, px, py, pz, attack1.get());
+                performOptimizedHit(target, px, py, pz, attack2.get());
+                performOptimizedHit(target, px, py, pz, attack2.get());
 
                 for (int j = 0; j < extraHitsAmount.get(); j++) {
-                    lerpUpDown(px, py, pz, extraHeights.get(j).get());
-                    sendAttack(target);
+                    performOptimizedHit(target, px, py, pz, extraHeights.get(j).get());
                 }
             }
 
@@ -175,47 +172,37 @@ public class UltraMace extends Module {
 
         } else {
             for (int i = 0; i < hitAmount.get(); i++) {
-                lerpUpDown(px, py, pz, fallHeight.get());
-                sendAttack(target);
+                performOptimizedHit(target, px, py, pz, fallHeight.get());
 
                 for (int j = 0; j < extraHitsAmount.get(); j++) {
-                    lerpUpDown(px, py, pz, extraHeights.get(j).get());
-                    sendAttack(target);
+                    performOptimizedHit(target, px, py, pz, extraHeights.get(j).get());
                 }
             }
+
+            sendPos(px, py, pz, true);
         }
     }
 
-    private void lerpUpDown(double x, double y, double z, int height) {
-        Vec3d bottom = new Vec3d(x, y, z);
-        Vec3d top = new Vec3d(x, y + height, z);
-
-        int steps = Math.max(1, height / 10);
+    private void performOptimizedHit(Entity target, double x, double y, double z, int height) {
+        int steps = Math.max(1, height / blocksPerPacket.get());
 
         for (int i = 1; i <= steps; i++) {
-            Vec3d pos = bottom.lerp(top, (double) i / steps);
-            sendPos(pos.x, pos.y, pos.z, false);
+            sendPos(x, y + ((double) height * i / steps), z, false);
         }
 
-        for (int i = steps - 1; i >= 0; i--) {
-            Vec3d pos = bottom.lerp(top, (double) i / steps);
-            sendPos(pos.x, pos.y, pos.z, false);
-        }
+        sendPos(x, y, z, false);
+
+        sendAttack(target);
     }
 
     private void sendAttack(Entity target) {
         SuperAura.isSendingAttack = true;
-        mc.getNetworkHandler().sendPacket(
-            PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking())
-        );
+        mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
         SuperAura.isSendingAttack = false;
     }
 
     private void sendPos(double x, double y, double z, boolean onGround) {
-        // CORRECCIÓN: false en lugar de mc.player.horizontalCollision para evitar fallos de mapeo en Gradle.
-        PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(
-            x, y, z, onGround, false
-        );
+        PlayerMoveC2SPacket.PositionAndOnGround p = new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, onGround, false);
         ((IPlayerMoveC2SPacket) p).meteor$setTag(1337);
         mc.getNetworkHandler().sendPacket(p);
     }
