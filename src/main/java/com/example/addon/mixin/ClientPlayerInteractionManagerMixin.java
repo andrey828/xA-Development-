@@ -1,4 +1,4 @@
-package com.example.addon.mixins;
+package com.example.addon.mixin;
 
 import net.minecraft.client.network.ClientPlayerInteractionManager;
 import org.spongepowered.asm.mixin.Mixin;
