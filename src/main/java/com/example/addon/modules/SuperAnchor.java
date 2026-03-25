@@ -17,6 +17,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 
+import java.lang.reflect.Field;
+
 public class SuperAnchor extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
@@ -37,12 +39,15 @@ public class SuperAnchor extends Module {
     private int delayTimer = 0;
 
     public SuperAnchor() {
-        super(AddonTemplate.CATEGORY, "xAnchor", "Ultra Fast Anchor");
+        super(AddonTemplate.CATEGORY, "xAnchor", "Ultra Fast 15-Block Anchor");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null || mc.world.getDimension().respawnAnchorWorks()) return;
+        if (mc.player == null || mc.world == null) return;
+        
+        // Evita explotar en el Nether (donde las anchors no explotan al cargarlas)
+        if (mc.world.getDimension().hasCeiling()) return;
 
         if (delayTimer > 0) {
             delayTimer--;
@@ -52,11 +57,9 @@ public class SuperAnchor extends Module {
         PlayerEntity target = getTarget();
         if (target == null) return;
 
-        // papoi
-        Vec3d targetVel = target.getVelocity();
-        double pX = target.getX() + (targetVel.x * 1.5);
-        double pY = target.getY() + (targetVel.y * 1.5);
-        double pZ = target.getZ() + (targetVel.z * 1.5);
+        double pX = target.getX() + (target.getVelocity().x * 1.5);
+        double pY = target.getY() + (target.getVelocity().y * 1.5);
+        double pZ = target.getZ() + (target.getVelocity().z * 1.5);
         
         BlockPos pos = BlockPos.ofFloored(pX, pY, pZ).up();
 
@@ -66,7 +69,19 @@ public class SuperAnchor extends Module {
         int glowstoneSlot = findItem(Items.GLOWSTONE);
         if (anchorSlot == -1 || glowstoneSlot == -1) return;
 
-        int oldSlot = mc.player.getInventory().selectedSlot;
+        int oldSlot = 0;
+        try {
+            Field field = mc.player.getInventory().getClass().getDeclaredField("selectedSlot");
+            field.setAccessible(true);
+            oldSlot = field.getInt(mc.player.getInventory());
+        } catch (Exception e) {
+            try {
+                Field field = mc.player.getInventory().getClass().getDeclaredField("field_7545");
+                field.setAccessible(true);
+                oldSlot = field.getInt(mc.player.getInventory());
+            } catch (Exception ignored) {}
+        }
+
         BlockHitResult hitResult = new BlockHitResult(new Vec3d(pos.getX(), pos.getY(), pos.getZ()), Direction.UP, pos, false);
 
         if (mc.world.getBlockState(pos).isAir()) {
