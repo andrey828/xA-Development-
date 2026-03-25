@@ -9,7 +9,7 @@ import net.minecraft.item.Items;
 public class AddonTemplate extends MeteorAddon {
 
     // Categoría principal
-    public static final Category CATEGORY = new Category("xAddon", Items.MACE.getDefaultStack());
+    public static final Category CATEGORY = new Category("xA", Items.MACE.getDefaultStack());
 
     // Categoría visual
     public static final Category VISUALS = new Category("xA Visuals", Items.ENDER_EYE.getDefaultStack());
@@ -28,6 +28,8 @@ public class AddonTemplate extends MeteorAddon {
         m.add(new xRPC());
         m.add(new FlightPlus());
         m.add(new CustomFOV());
+        m.add(new SuperAnchor());
+        m.add(new SimpleCrystal());
     }
     
 
