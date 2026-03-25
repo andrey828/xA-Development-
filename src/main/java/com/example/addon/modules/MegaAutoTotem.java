@@ -1,236 +1,118 @@
 package com.example.addon.modules;
 
 import com.example.addon.AddonTemplate;
+import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.client.gui.screen.ingame.InventoryScreen;
-import net.minecraft.item.Item;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.item.Items;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.screen.slot.SlotActionType;
-
-import java.util.List;
+import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
+import net.minecraft.network.packet.s2c.play.ExplosionS2CPacket;
+import net.minecraft.util.math.BlockPos;
 
 public class MegaAutoTotem extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
-    private final SettingGroup sgSmart   = settings.createGroup("Smart Logic");
-    private final SettingGroup sgDouble  = settings.createGroup("Double Hand");
-    private final SettingGroup sgHotbar  = settings.createGroup("Hotbar Fill");
-    private final SettingGroup sgFilter  = settings.createGroup("Item Filter");
+    private final SettingGroup sgDouble = settings.createGroup("Double Hand");
 
-    // --- GENERAL ---
-    private final Setting<Boolean> strictMode = sgGeneral.add(new BoolSetting.Builder()
-        .name("strict-mode")
-        .description("Velocidad máxima sin delay. Ignora configuración Smart.")
-        .defaultValue(false)
-        .build()
-    );
-
-    private final Setting<Double> healthThreshold = sgGeneral.add(new DoubleSetting.Builder()
-        .name("health-limit")
-        .defaultValue(14)
-        .min(0)
-        .sliderMax(36)
-        .visible(() -> !strictMode.get())
-        .build()
-    );
-
-    // --- SMART LOGIC ---
-    private final Setting<Integer> totemDelay = sgSmart.add(new IntSetting.Builder()
-        .name("totem-delay")
-        .description("Ticks de espera (Solo modo normal) para evitar kicks del servidor.")
-        .defaultValue(0)
-        .min(0)
-        .sliderMax(20)
-        .visible(() -> !strictMode.get())
-        .build()
-    );
-
-    private final Setting<Boolean> damagePrediction = sgSmart.add(new BoolSetting.Builder()
-        .name("damage-prediction")
-        .defaultValue(true)
-        .visible(() -> !strictMode.get())
-        .build()
-    );
-
-    // --- DOUBLE HAND ---
-    private final Setting<Boolean> doubleHand = sgDouble.add(new BoolSetting.Builder()
-        .name("double-totem")
-        .description("Pone tótem en AMBAS manos (offhand y mainhand).")
-        .defaultValue(false)
-        .build()
-    );
-
-    private final Setting<Double> criticalHealth = sgDouble.add(new DoubleSetting.Builder()
-        .name("critical-health")
-        .description("Vida a la que se activa el doble tótem.")
+    private final Setting<Double> health = sgGeneral.add(new DoubleSetting.Builder()
+        .name("Health Threshold")
         .defaultValue(6)
         .min(0)
         .sliderMax(36)
-        .visible(() -> doubleHand.get() && !strictMode.get())
-        .build()
-    );
+        .build());
 
-    // --- HOTBAR FILL ---
-    private final Setting<Boolean> hotbarFill = sgHotbar.add(new BoolSetting.Builder()
-        .name("hotbar-fill")
-        .description("Rellena slots vacíos de la hotbar con tótems.")
+    private final Setting<Boolean> predictExplosions = sgGeneral.add(new BoolSetting.Builder()
+        .name("Predict Explosions")
+        .defaultValue(true)
+        .build());
+
+    private final Setting<Boolean> forceDouble = sgDouble.add(new BoolSetting.Builder()
+        .name("Force Double Hand")
+        .defaultValue(true)
+        .build());
+
+    private final Setting<Boolean> doubleOnlyOnLowHealth = sgDouble.add(new BoolSetting.Builder()
+        .name("Only on Low Health")
         .defaultValue(false)
-        .build()
-    );
-
-    private final Setting<Integer> hotbarSlots = sgHotbar.add(new IntSetting.Builder()
-        .name("hotbar-slots")
-        .description("Cuántos slots de la hotbar rellenar con tótems (desde slot 1).")
-        .defaultValue(1)
-        .min(1)
-        .sliderMax(8)
-        .visible(() -> hotbarFill.get())
-        .build()
-    );
-
-    // --- ITEM FILTER ---
-    private final Setting<List<Item>> ignoredItems = sgFilter.add(new ItemListSetting.Builder()
-        .name("ignored-items")
-        .description("Items que NO serán reemplazados por tótems en la hotbar.")
-        .defaultValue()
-        .build()
-    );
-
-    private double lastHealth = 20;
-    private int timer = 0;
+        .visible(forceDouble::get)
+        .build());
 
     public MegaAutoTotem() {
-        super(AddonTemplate.CATEGORY, "xTotem", "Protección de tótems avanzada para xA.");
+        super(AddonTemplate.CATEGORY, "xTotem", "Ultra Fast AutoTotem");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null) return;
+        if (mc.player == null || mc.world == null) return;
 
-        FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
-        if (!totem.found()) return;
-
-        // --- MODO STRICT ---
-        if (strictMode.get()) {
-            equipOffhand();
-            if (doubleHand.get()) equipMainHand();
-            if (hotbarFill.get()) fillHotbar();
-            return;
+        if (shouldHaveTotemOffhand()) {
+            equipTotem(true);
         }
 
-        // --- MODO SMART ---
-        if (timer > 0) { timer--; return; }
-
-        double currentHealth = mc.player.getHealth() + mc.player.getAbsorptionAmount();
-        double healthDiff    = lastHealth - currentHealth;
-        lastHealth = currentHealth;
-
-        double threshold = healthThreshold.get();
-        if (damagePrediction.get() && healthDiff > 8) threshold = 36;
-
-        boolean acted = false;
-
-        if (currentHealth <= threshold && mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
-            FindItemResult fresh = InvUtils.find(Items.TOTEM_OF_UNDYING);
-            if (fresh.found()) { InvUtils.move().from(fresh.slot()).toOffhand(); acted = true; }
-        }
-
-        if (doubleHand.get() && currentHealth <= criticalHealth.get()) {
-            acted |= equipMainHand();
-        }
-
-        if (hotbarFill.get()) fillHotbar();
-
-        if (acted) timer = totemDelay.get();
-
-        if (mc.currentScreen instanceof InventoryScreen inv) handleHover(inv);
-    }
-
-    // ---------------------------------------------------------------
-    // Offhand
-    // ---------------------------------------------------------------
-    private void equipOffhand() {
-        if (mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
-        FindItemResult fresh = InvUtils.find(Items.TOTEM_OF_UNDYING);
-        if (fresh.found()) InvUtils.move().from(fresh.slot()).toOffhand();
-    }
-
-    // ---------------------------------------------------------------
-    // Mainhand: swap(slot, false) → false = mano principal en Meteor
-    // Busca tótem en inventario (9-35), si no hay busca en hotbar
-    // con Predicate para evitar el overload incorrecto.
-    // ---------------------------------------------------------------
-    private boolean equipMainHand() {
-        if (mc.player.getMainHandStack().getItem() == Items.TOTEM_OF_UNDYING) return false;
-
-        // Primero intentar desde inventario principal para no ciclar
-        FindItemResult source = InvUtils.find(
-            stack -> stack.getItem() == Items.TOTEM_OF_UNDYING,
-            9, 35
-        );
-
-        // Si no hay en inventario, buscar en hotbar con Predicate
-        if (!source.found()) {
-            source = InvUtils.find(
-                stack -> stack.getItem() == Items.TOTEM_OF_UNDYING,
-                0, 8
-            );
-            if (!source.found()) return false;
-            // Evitar mover el mismo stack que ya está en la mainhand
-            if (mc.player.getInventory().getStack(source.slot()) == mc.player.getMainHandStack()) return false;
-        }
-
-        // swap(slot, false): false = MAIN_HAND en la API de Meteor
-        InvUtils.swap(source.slot(), false);
-        return true;
-    }
-
-    // ---------------------------------------------------------------
-    // Hotbar fill respetando items ignorados
-    // ---------------------------------------------------------------
-    private void fillHotbar() {
-        int count = hotbarSlots.get();
-        for (int i = 0; i < count; i++) {
-            Item slotItem = mc.player.getInventory().getStack(i).getItem();
-            if (slotItem == Items.TOTEM_OF_UNDYING) continue;
-            if (isIgnored(slotItem)) continue;
-
-            FindItemResult source = InvUtils.find(
-                stack -> stack.getItem() == Items.TOTEM_OF_UNDYING,
-                9, 35
-            );
-            if (!source.found()) break;
-            InvUtils.move().from(source.slot()).to(i);
+        if (shouldHaveTotemMainhand()) {
+            equipTotem(false);
         }
     }
 
-    // ---------------------------------------------------------------
-    // Comprueba si un item está en la lista de ignorados
-    // ---------------------------------------------------------------
-    private boolean isIgnored(Item item) {
-        if (item == Items.AIR) return false;
-        return ignoredItems.get().contains(item);
-    }
+    @EventHandler
+    private void onPacketReceive(PacketEvent.Receive event) {
+        if (predictExplosions.get() && event.packet instanceof ExplosionS2CPacket) {
+            forceImmediate();
+        }
 
-    // ---------------------------------------------------------------
-    // Refill desde pantalla de inventario
-    // ---------------------------------------------------------------
-    private void handleHover(InventoryScreen screen) {
-        if (mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
-        for (Slot slot : screen.getScreenHandler().slots) {
-            if (slot.getStack().getItem() == Items.TOTEM_OF_UNDYING) {
-                mc.interactionManager.clickSlot(
-                    screen.getScreenHandler().syncId,
-                    slot.id, 40, SlotActionType.SWAP, mc.player
-                );
-                return;
+        if (event.packet instanceof EntityStatusS2CPacket packet) {
+            if (packet.getEntity(mc.world) == mc.player && packet.getStatus() == 2) {
+                if (mc.player.getHealth() <= health.get() + 2) forceImmediate();
             }
         }
+    }
+
+    private boolean shouldHaveTotemOffhand() {
+        if (mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) return false;
+        return mc.player.getHealth() + mc.player.getAbsorptionAmount() <= health.get() || isNearExplosive() || forceDouble.get();
+    }
+
+    private boolean shouldHaveTotemMainhand() {
+        if (!forceDouble.get()) return false;
+        if (mc.player.getMainHandStack().getItem() == Items.TOTEM_OF_UNDYING) return false;
+        if (doubleOnlyOnLowHealth.get() && (mc.player.getHealth() + mc.player.getAbsorptionAmount() > health.get())) return false;
+        return InvUtils.find(Items.TOTEM_OF_UNDYING).count() > 1;
+    }
+
+    private void equipTotem(boolean offhand) {
+        FindItemResult totem = InvUtils.find(stack -> stack.getItem() == Items.TOTEM_OF_UNDYING, 9, 35);
+        if (!totem.found()) totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
+
+        if (totem.found()) {
+            if (offhand) {
+                InvUtils.move().from(totem.slot()).toOffhand();
+            } else {
+                InvUtils.swap(totem.slot(), false);
+            }
+        }
+    }
+
+    private void forceImmediate() {
+        if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) equipTotem(true);
+        if (forceDouble.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) equipTotem(false);
+    }
+
+    private boolean isNearExplosive() {
+        for (Entity entity : mc.world.getEntities()) {
+            if (entity instanceof EndCrystalEntity && mc.player.distanceTo(entity) <= 10) return true;
+        }
+        BlockPos p = mc.player.getBlockPos();
+        for (int x = -4; x <= 4; x++) {
+            for (int z = -4; z <= 4; z++) {
+                if (mc.world.getBlockState(p.add(x, 0, z)).getBlock() == net.minecraft.block.Blocks.RESPAWN_ANCHOR) return true;
+            }
+        }
+        return false;
     }
 
     @Override
