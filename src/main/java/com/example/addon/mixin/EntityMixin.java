@@ -8,9 +8,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Entity.class)
 public class EntityMixin {
-    
-    @Inject(method = "getTargetingMargin", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "method_5871", at = @At("HEAD"), cancellable = true, remap = true)
     private void onGetTargetingMargin(CallbackInfoReturnable<Float> cir) {
-        cir.setReturnValue(15.0f); 
+        cir.setReturnValue(15.0f);
     }
 }
