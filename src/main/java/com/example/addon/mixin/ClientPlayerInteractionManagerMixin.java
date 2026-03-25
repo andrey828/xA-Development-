@@ -8,13 +8,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(ClientPlayerInteractionManager.class)
 public class ClientPlayerInteractionManagerMixin {
-  
-    @Inject(method = "getReachDistance", at = @At("HEAD"), cancellable = true)
+    
+    @Inject(method = "method_2904", at = @At("HEAD"), cancellable = true, remap = true)
     private void onGetReachDistance(CallbackInfoReturnable<Float> cir) {
-        cir.setReturnValue(15.0f); 
+        cir.setReturnValue(15.0f);
     }
 
-    @Inject(method = "hasExtendedReach", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "method_2924", at = @At("HEAD"), cancellable = true, remap = true)
     private void hasExtendedReach(CallbackInfoReturnable<Boolean> cir) {
         cir.setReturnValue(true);
     }
