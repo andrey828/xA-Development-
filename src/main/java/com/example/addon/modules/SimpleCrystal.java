@@ -69,12 +69,16 @@ public class SimpleCrystal extends Module {
         if (placeTimer == 0) {
             PlayerEntity target = getTarget();
             if (target != null) {
-                Vec3d predictedPos = target.getPos().add(target.getVelocity().multiply(2));
-                BlockPos targetBlock = BlockPos.ofFloored(predictedPos).down();
+                Vec3d targetVelocity = target.getVelocity();
+                double pX = target.getX() + (targetVelocity.x * 2);
+                double pY = target.getY() + (targetVelocity.y * 2);
+                double pZ = target.getZ() + (targetVelocity.z * 2);
+                
+                BlockPos targetBlock = BlockPos.ofFloored(pX, pY, pZ).down();
 
                 if (mc.world.getBlockState(targetBlock).getBlock() == net.minecraft.block.Blocks.OBSIDIAN || mc.world.getBlockState(targetBlock).getBlock() == net.minecraft.block.Blocks.BEDROCK) {
                     Hand hand = mc.player.getMainHandStack().isOf(Items.END_CRYSTAL) ? Hand.MAIN_HAND : Hand.OFF_HAND;
-                    BlockHitResult hitResult = new BlockHitResult(Vec3d.ofCenter(targetBlock), Direction.UP, targetBlock, false);
+                    BlockHitResult hitResult = new BlockHitResult(new Vec3d(targetBlock.getX(), targetBlock.getY(), targetBlock.getZ()), Direction.UP, targetBlock, false);
                     mc.getNetworkHandler().sendPacket(new PlayerInteractBlockC2SPacket(hand, hitResult, 0));
                     placeTimer = placeDelay.get();
                 }
@@ -95,4 +99,4 @@ public class SimpleCrystal extends Module {
         }
         return closest;
     }
-        }
+}
