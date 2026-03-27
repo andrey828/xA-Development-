@@ -42,7 +42,7 @@ public class MegaAutoTotem extends Module {
     private long last = 0;
 
     public MegaAutoTotem() {
-        super(AddonTemplate.CATEGORY, "xTotem", "AutoTotem con Double Hand");
+        super(AddonTemplate.CATEGORY, "xTotem", "AutoTotem con Double Hand, Strict Mode y Hotbar Refill");
     }
 
     @EventHandler
@@ -50,7 +50,6 @@ public class MegaAutoTotem extends Module {
         if (mc.player == null || mc.world == null) return;
         if (System.currentTimeMillis() - last < 10) return;
 
-        // Refills hotbar automatically
         refillHotbar();
 
         if (should()) {
@@ -87,7 +86,7 @@ public class MegaAutoTotem extends Module {
 
         // Equip mainhand if Double Hand active and Strict Mode allows
         if (!strict.get() && doubleHand.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
-            int emptySlot = InvUtils.findEmptyHotbarSlot();
+            int emptySlot = getEmptyHotbarSlot();
             if (emptySlot != -1) {
                 InvUtils.move().from(totem.slot()).toHotbar(emptySlot);
                 InvUtils.swap(emptySlot, false);
@@ -95,7 +94,7 @@ public class MegaAutoTotem extends Module {
         }
     }
 
-    // Rellena cualquier slot vacío en la hotbar con tótems
+    // Refill empty hotbar slots
     private void refillHotbar() {
         for (int i = 0; i < 9; i++) {
             if (mc.player.getInventory().getStack(i).isEmpty()) {
@@ -105,6 +104,14 @@ public class MegaAutoTotem extends Module {
                 }
             }
         }
+    }
+
+    // Busca slot vacío en hotbar
+    private int getEmptyHotbarSlot() {
+        for (int i = 0; i < 9; i++) {
+            if (mc.player.getInventory().getStack(i).isEmpty()) return i;
+        }
+        return -1;
     }
 
     private boolean danger() {
