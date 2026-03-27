@@ -21,12 +21,18 @@ public class MegaAutoTotem extends Module {
     private final SettingGroup sg = settings.getDefaultGroup();
 
     private final Setting<Boolean> strict = sg.add(new BoolSetting.Builder()
-        .name("Strict")
+        .name("Strict Mode")
         .defaultValue(true)
         .build());
 
+    private final Setting<Boolean> doubleHand = sg.add(new BoolSetting.Builder()
+        .name("Double Hand")
+        .defaultValue(true)
+        .visible(() -> !strict.get())
+        .build());
+
     private final Setting<Double> hp = sg.add(new DoubleSetting.Builder()
-        .name("HP")
+        .name("HP Threshold")
         .defaultValue(10)
         .min(0)
         .sliderMax(36)
@@ -36,13 +42,16 @@ public class MegaAutoTotem extends Module {
     private long last = 0;
 
     public MegaAutoTotem() {
-        super(AddonTemplate.CATEGORY, "xTotem", "AutoTotem");
+        super(AddonTemplate.CATEGORY, "xTotem", "AutoTotem con Double Hand");
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre e) {
         if (mc.player == null || mc.world == null) return;
         if (System.currentTimeMillis() - last < 10) return;
+
+        // Refills hotbar automatically
+        refillHotbar();
 
         if (should()) {
             equip();
@@ -52,9 +61,9 @@ public class MegaAutoTotem extends Module {
 
     @EventHandler
     private void onPacket(PacketEvent.Receive e) {
-        if (e.packet instanceof ExplosionS2CPacket) force();
+        if (e.packet instanceof ExplosionS2CPacket) forceEquip();
         if (e.packet instanceof EntityStatusS2CPacket p) {
-            if (p.getEntity(mc.world) == mc.player && p.getStatus() == 2) force();
+            if (p.getEntity(mc.world) == mc.player && p.getStatus() == 2) forceEquip();
         }
     }
 
@@ -63,17 +72,39 @@ public class MegaAutoTotem extends Module {
         return strict.get() ? (h <= 12 || danger()) : (h <= hp.get() || danger());
     }
 
-    private void force() {
+    private void forceEquip() {
         equip();
     }
 
     private void equip() {
-        if (mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
+        FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
+        if (!totem.found()) return;
 
-        FindItemResult t = InvUtils.find(Items.TOTEM_OF_UNDYING);
-        if (!t.found()) return;
+        // Equip offhand always
+        if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
+            InvUtils.move().from(totem.slot()).toOffhand();
+        }
 
-        InvUtils.move().from(t.slot()).toOffhand();
+        // Equip mainhand if Double Hand active and Strict Mode allows
+        if (!strict.get() && doubleHand.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
+            int emptySlot = InvUtils.findEmptyHotbarSlot();
+            if (emptySlot != -1) {
+                InvUtils.move().from(totem.slot()).toHotbar(emptySlot);
+                InvUtils.swap(emptySlot, false);
+            }
+        }
+    }
+
+    // Rellena cualquier slot vacío en la hotbar con tótems
+    private void refillHotbar() {
+        for (int i = 0; i < 9; i++) {
+            if (mc.player.getInventory().getStack(i).isEmpty()) {
+                FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
+                if (totem.found()) {
+                    InvUtils.move().from(totem.slot()).toHotbar(i);
+                }
+            }
+        }
     }
 
     private boolean danger() {
@@ -82,12 +113,9 @@ public class MegaAutoTotem extends Module {
         }
 
         BlockPos p = mc.player.getBlockPos();
-
         for (int x = -3; x <= 3; x++) {
             for (int z = -3; z <= 3; z++) {
-                if (mc.world.getBlockState(p.add(x, 0, z)).getBlock() == Blocks.RESPAWN_ANCHOR) {
-                    return true;
-                }
+                if (mc.world.getBlockState(p.add(x, 0, z)).getBlock() == Blocks.RESPAWN_ANCHOR) return true;
             }
         }
 
