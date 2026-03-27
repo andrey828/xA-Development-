@@ -9,6 +9,7 @@ import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.util.Util;
 
@@ -35,80 +36,37 @@ public class xRPC extends Module {
 
     private static final RichPresence rpc = new RichPresence();
 
-    private static long startTimestamp = -1;
-
     private boolean ipcConnected = false;
-    private int reconnectTicks = 0;
-
-    private static final int RECONNECT_INTERVAL = 600; // ~30s (suficiente para ganar prioridad)
-
-    private boolean initialized = false;
+    private boolean autoStarted = false;
 
     public xRPC() {
-        super(AddonTemplate.CATEGORY, "xRPC", "Clean Discord RPC.");
+        super(AddonTemplate.CATEGORY, "xRPC", "Discord Rich Presence for xA.");
         runInMainMenu = true;
     }
 
     @Override
     public void onActivate() {
-        if (startTimestamp == -1) {
-            startTimestamp = System.currentTimeMillis() / 1000L;
-        }
         connectIPC();
     }
 
     @Override
     public void onDeactivate() {
-        try {
-            DiscordIPC.stop();
-        } catch (Exception ignored) {}
-        ipcConnected = false;
+        // NO shutdown, para que nunca se apague
     }
 
     private void connectIPC() {
         try {
             patchDiscordIPC();
+            DiscordIPC.start(1483491540784644377L, null); // tu Client ID
 
-            DiscordIPC.start(1483491540784644377L, null);
-
-            rpc.setStart(startTimestamp);
+            rpc.setStart(System.currentTimeMillis() / 1000L);
             rpc.setLargeImage("25565", "xA Addon");
 
-            // 🔥 SOLO UNA VEZ
-            setRPCContent();
-
-            DiscordIPC.setActivity(rpc);
-
             ipcConnected = true;
+            updateRPC();
 
         } catch (Exception e) {
             ipcConnected = false;
-        }
-    }
-
-    private void reconnectIPC() {
-        try {
-            DiscordIPC.stop();
-            Thread.sleep(100);
-        } catch (Exception ignored) {}
-
-        ipcConnected = false;
-        connectIPC();
-    }
-
-    private void setRPCContent() {
-        if (mc.player == null) {
-            rpc.setDetails("xA Addon");
-            rpc.setState("En el menu");
-        } else {
-            rpc.setDetails(line1Strings.get().get(0));
-
-            String server = getServerName();
-            if (server != null) {
-                rpc.setState(line2Strings.get().get(0) + " | " + server);
-            } else {
-                rpc.setState(line2Strings.get().get(0));
-            }
         }
     }
 
@@ -139,24 +97,38 @@ public class xRPC extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-
-        // auto start
-        if (!initialized) {
-            initialized = true;
+        // Auto start module al iniciar Minecraft
+        if (!autoStarted) {
+            autoStarted = true;
             if (!this.isActive()) this.toggle();
-            return;
         }
 
         if (!ipcConnected) {
             connectIPC();
-            return;
         }
 
-        // 🔥 SOLO reconectar cada X tiempo (sin actualizar contenido)
-        reconnectTicks++;
-        if (reconnectTicks >= RECONNECT_INTERVAL) {
-            reconnectTicks = 0;
-            reconnectIPC();
+        updateRPC();
+    }
+
+    private void updateRPC() {
+        if (mc.player == null) {
+            rpc.setDetails("xA Addon");
+            rpc.setState("En el menu");
+        } else {
+            rpc.setDetails(line1Strings.get().get(0));
+
+            String server = getServerName();
+            if (server != null) {
+                rpc.setState(line2Strings.get().get(0) + " | " + server);
+            } else {
+                rpc.setState(line2Strings.get().get(0));
+            }
+        }
+
+        try {
+            DiscordIPC.setActivity(rpc);
+        } catch (Exception e) {
+            ipcConnected = false;
         }
     }
 
