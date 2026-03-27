@@ -38,11 +38,11 @@ public class xRPC extends Module {
 
     private boolean ipcConnected = false;
     private int retryTicks = 0;
-    private static final int RETRY_INTERVAL = 100;
-    private boolean autoStarted = false;
+    private static final int RETRY_INTERVAL = 50;
+    private boolean autoStarted = true;
 
     public xRPC() {
-        super(AddonTemplate.CATEGORY, "xRPC", "Discord Rich Presence for xA.");
+        super(AddonTemplate.CATEGORY, "xRPC", "Discord Rich Presence .");
         runInMainMenu = true;
     }
 
