@@ -24,7 +24,7 @@ public class FlightPlus extends Module {
             .description("Velocidad de traslación horizontal.")
             .defaultValue(1.0)
             .min(0.1)
-            .sliderMax(5)
+            .sliderMax(10)
             .build()
     );
 
@@ -37,7 +37,7 @@ public class FlightPlus extends Module {
     );
 
     public FlightPlus() {
-        super(AddonTemplate.CATEGORY, "xFlight", "Vuelo avanzado con estabilización y bypass de gravedad.");
+        super(AddonTemplate.CATEGORY, "xFlight", "fly mejorado.");
     }
 
     @EventHandler
