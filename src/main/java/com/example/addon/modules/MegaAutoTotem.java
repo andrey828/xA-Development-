@@ -25,12 +25,6 @@ public class MegaAutoTotem extends Module {
         .defaultValue(true)
         .build());
 
-    private final Setting<Boolean> doubleHand = sg.add(new BoolSetting.Builder()
-        .name("Double Hand")
-        .defaultValue(true)
-        .visible(() -> !strict.get())
-        .build());
-
     private final Setting<Double> hp = sg.add(new DoubleSetting.Builder()
         .name("HP")
         .defaultValue(10)
@@ -42,7 +36,7 @@ public class MegaAutoTotem extends Module {
     private long last = 0;
 
     public MegaAutoTotem() {
-        super(AddonTemplate.CATEGORY, "xTotem", " Simple AutoTotem ");
+        super(AddonTemplate.CATEGORY, "xTotem", "AutoTotem");
     }
 
     @EventHandler
@@ -51,8 +45,7 @@ public class MegaAutoTotem extends Module {
         if (System.currentTimeMillis() - last < 10) return;
 
         if (should()) {
-            offhand();
-            if (doubleHand.get() || strict.get()) mainhand();
+            equip();
             last = System.currentTimeMillis();
         }
     }
@@ -67,45 +60,20 @@ public class MegaAutoTotem extends Module {
 
     private boolean should() {
         float h = mc.player.getHealth() + mc.player.getAbsorptionAmount();
-
-        if (strict.get()) return h <= 12 || danger();
-        return h <= hp.get() || danger();
+        return strict.get() ? (h <= 12 || danger()) : (h <= hp.get() || danger());
     }
 
     private void force() {
-        offhand();
-        mainhand();
+        equip();
     }
 
-    private void offhand() {
+    private void equip() {
         if (mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
-
-        FindItemResult t = InvUtils.find(Items.TOTEM_OF_UNDYING);
-        if (t.found()) InvUtils.move().from(t.slot()).toOffhand();
-    }
-
-    private void mainhand() {
-        if (mc.player.getMainHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
 
         FindItemResult t = InvUtils.find(Items.TOTEM_OF_UNDYING);
         if (!t.found()) return;
 
-        if (t.isHotbar()) {
-            mc.player.getInventory().selectedSlot = t.slot();
-        } else {
-            int s = empty();
-            if (s == -1) s = mc.player.getInventory().selectedSlot;
-
-            InvUtils.move().from(t.slot()).toHotbar(s);
-            mc.player.getInventory().selectedSlot = s;
-        }
-    }
-
-    private int empty() {
-        for (int i = 0; i < 9; i++) {
-            if (mc.player.getInventory().getStack(i).isEmpty()) return i;
-        }
-        return -1;
+        InvUtils.move().from(t.slot()).toOffhand();
     }
 
     private boolean danger() {
