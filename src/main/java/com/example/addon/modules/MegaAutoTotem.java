@@ -31,6 +31,13 @@ public class MegaAutoTotem extends Module {
         .defaultValue(true)
         .build());
 
+    // NUEVO: Evita hacer movimientos de inventario si hay un menú abierto (previene desyncs)
+    private final Setting<Boolean> strictMode = sgGeneral.add(new BoolSetting.Builder()
+        .name("Strict Mode")
+        .description("Avoids moving totems while in other inventories to prevent desync.")
+        .defaultValue(true)
+        .build());
+
     private final Setting<Boolean> forceDouble = sgDouble.add(new BoolSetting.Builder()
         .name("Force Double Hand")
         .defaultValue(true)
@@ -49,6 +56,9 @@ public class MegaAutoTotem extends Module {
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
+
+        // Rellena la hotbar automáticamente con un tótem sin desordenar nada
+        refillHotbarTótem();
 
         if (shouldHaveTotemOffhand()) {
             equipTotem(true);
@@ -85,16 +95,63 @@ public class MegaAutoTotem extends Module {
     }
 
     private void equipTotem(boolean offhand) {
-        FindItemResult totem = InvUtils.find(stack -> stack.getItem() == Items.TOTEM_OF_UNDYING, 9, 35);
-        if (!totem.found()) totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
+        // Strict Mode: cancela la acción si hay otro menú abierto
+        if (strictMode.get() && mc.currentScreen != null) return;
 
-        if (totem.found()) {
-            if (offhand) {
+        if (offhand) {
+            FindItemResult totem = InvUtils.find(stack -> stack.getItem() == Items.TOTEM_OF_UNDYING, 9, 35);
+            if (!totem.found()) totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
+
+            if (totem.found()) {
                 InvUtils.move().from(totem.slot()).toOffhand();
+            }
+        } else {
+            // Mainhand: Intenta utilizar el tótem que ya se encuentre en la hotbar
+            FindItemResult hotbarTotem = InvUtils.findInHotbar(Items.TOTEM_OF_UNDYING);
+            if (hotbarTotem.found()) {
+                mc.player.getInventory().selectedSlot = hotbarTotem.slot();
             } else {
-                InvUtils.swap(totem.slot(), false);
+                FindItemResult totem = InvUtils.find(stack -> stack.getItem() == Items.TOTEM_OF_UNDYING, 9, 35);
+                if (!totem.found()) totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
+
+                if (totem.found()) {
+                    int emptySlot = getEmptyHotbarSlot();
+                    if (emptySlot != -1) {
+                        // Lo mueve a un slot vacío en vez de intercambiarlo por tu herramienta actual
+                        InvUtils.move().from(totem.slot()).toHotbar(emptySlot);
+                        mc.player.getInventory().selectedSlot = emptySlot;
+                    } else {
+                        // Fallback clásico si tienes la hotbar llena y a juro necesitas el tótem
+                        InvUtils.swap(totem.slot(), false);
+                    }
+                }
             }
         }
+    }
+
+    // NUEVO: Método para mantener un tótem preparado en la hotbar sin ser invasivo
+    private void refillHotbarTótem() {
+        if (strictMode.get() && mc.currentScreen != null) return;
+
+        if (!InvUtils.findInHotbar(Items.TOTEM_OF_UNDYING).found()) {
+            int emptySlot = getEmptyHotbarSlot();
+            if (emptySlot != -1) {
+                FindItemResult totem = InvUtils.find(stack -> stack.getItem() == Items.TOTEM_OF_UNDYING, 9, 35);
+                if (totem.found()) {
+                    InvUtils.move().from(totem.slot()).toHotbar(emptySlot);
+                }
+            }
+        }
+    }
+
+    // NUEVO: Utilidad para encontrar un slot libre
+    private int getEmptyHotbarSlot() {
+        for (int i = 0; i < 9; i++) {
+            if (mc.player.getInventory().getStack(i).isEmpty()) {
+                return i;
+            }
+        }
+        return -1; // -1 si todo está ocupado
     }
 
     private void forceImmediate() {
