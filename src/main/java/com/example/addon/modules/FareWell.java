@@ -47,7 +47,7 @@ public class FareWell extends Module {
 
     private final Setting<Boolean> antiSpamBypass = sgAntiSpam.add(new BoolSetting.Builder()
             .name("anti-spam-bypass")
-            .defaultValue(true)
+            .defaultValue(false)
             .build()
     );
 
