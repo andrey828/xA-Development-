@@ -28,8 +28,6 @@ public class AddonTemplate extends MeteorAddon {
         m.add(new xRPC());
         m.add(new FlightPlus());
         m.add(new CustomFOV());
-        m.add(new xAnchor());
-        m.add(new xCrystal());
     }
     
 
