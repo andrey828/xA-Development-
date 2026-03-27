@@ -9,7 +9,6 @@ import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.util.Util;
 
@@ -39,15 +38,27 @@ public class xRPC extends Module {
     private boolean ipcConnected = false;
     private int retryTicks = 0;
     private static final int RETRY_INTERVAL = 50;
-    private boolean autoStarted = true;
+
+    private int forceReconnectTicks = 0;
+    private static final int FORCE_RECONNECT_INTERVAL = 200;
+
+    private static final int START_DELAY = 100;
+    private int startDelayTicks = 0;
+
+    private boolean autoStarted = false;
+
+    private long startTimestamp = 0; // CLAVE
 
     public xRPC() {
-        super(AddonTemplate.CATEGORY, "xRPC", "Discord Rich Presence .");
+        super(AddonTemplate.CATEGORY, "xRPC", "Discord Rich Presence.");
         runInMainMenu = true;
     }
 
     @Override
     public void onActivate() {
+        if (startTimestamp == 0) {
+            startTimestamp = System.currentTimeMillis() / 1000L;
+        }
         connectIPC();
     }
 
@@ -62,9 +73,18 @@ public class xRPC extends Module {
     private void connectIPC() {
         try {
             patchDiscordIPC();
+
+            try {
+                DiscordIPC.stop();
+            } catch (Exception ignored) {}
+
+            Thread.sleep(200);
+
             DiscordIPC.start(1483491540784644377L, null);
 
-            rpc.setStart(System.currentTimeMillis() / 1000L);
+            // NO SE RESETEA
+            rpc.setStart(startTimestamp);
+
             rpc.setLargeImage("25565", "xA Addon");
 
             ipcConnected = true;
@@ -103,19 +123,35 @@ public class xRPC extends Module {
     @EventHandler
     private void onTick(TickEvent.Post event) {
 
-        // Auto start module when Minecraft starts
+        if (startDelayTicks < START_DELAY) {
+            startDelayTicks++;
+            return;
+        }
+
         if (!autoStarted) {
             autoStarted = true;
             if (!this.isActive()) this.toggle();
         }
 
-        // Retry connection
         if (!ipcConnected) {
             retryTicks++;
             if (retryTicks >= RETRY_INTERVAL) {
                 retryTicks = 0;
                 connectIPC();
             }
+            return;
+        }
+
+        forceReconnectTicks++;
+        if (forceReconnectTicks >= FORCE_RECONNECT_INTERVAL) {
+            forceReconnectTicks = 0;
+
+            try {
+                DiscordIPC.stop();
+            } catch (Exception ignored) {}
+
+            ipcConnected = false;
+            connectIPC();
             return;
         }
 
