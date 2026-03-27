@@ -35,28 +35,23 @@ public class xRPC extends Module {
 
     private static final RichPresence rpc = new RichPresence();
 
+    private static long startTimestamp = -1;
+
     private boolean ipcConnected = false;
-    private int retryTicks = 0;
-    private static final int RETRY_INTERVAL = 50;
+    private int reconnectTicks = 0;
 
-    private int forceReconnectTicks = 0;
-    private static final int FORCE_RECONNECT_INTERVAL = 200;
+    private static final int RECONNECT_INTERVAL = 600; // ~30s (suficiente para ganar prioridad)
 
-    private static final int START_DELAY = 100;
-    private int startDelayTicks = 0;
-
-    private boolean autoStarted = false;
-
-    private long startTimestamp = 0; // CLAVE
+    private boolean initialized = false;
 
     public xRPC() {
-        super(AddonTemplate.CATEGORY, "xRPC", "Discord Rich Presence.");
+        super(AddonTemplate.CATEGORY, "xRPC", "Clean Discord RPC.");
         runInMainMenu = true;
     }
 
     @Override
     public void onActivate() {
-        if (startTimestamp == 0) {
+        if (startTimestamp == -1) {
             startTimestamp = System.currentTimeMillis() / 1000L;
         }
         connectIPC();
@@ -74,24 +69,46 @@ public class xRPC extends Module {
         try {
             patchDiscordIPC();
 
-            try {
-                DiscordIPC.stop();
-            } catch (Exception ignored) {}
-
-            Thread.sleep(200);
-
             DiscordIPC.start(1483491540784644377L, null);
 
-            // NO SE RESETEA
             rpc.setStart(startTimestamp);
-
             rpc.setLargeImage("25565", "xA Addon");
 
+            // 🔥 SOLO UNA VEZ
+            setRPCContent();
+
+            DiscordIPC.setActivity(rpc);
+
             ipcConnected = true;
-            updateRPC();
 
         } catch (Exception e) {
             ipcConnected = false;
+        }
+    }
+
+    private void reconnectIPC() {
+        try {
+            DiscordIPC.stop();
+            Thread.sleep(100);
+        } catch (Exception ignored) {}
+
+        ipcConnected = false;
+        connectIPC();
+    }
+
+    private void setRPCContent() {
+        if (mc.player == null) {
+            rpc.setDetails("xA Addon");
+            rpc.setState("En el menu");
+        } else {
+            rpc.setDetails(line1Strings.get().get(0));
+
+            String server = getServerName();
+            if (server != null) {
+                rpc.setState(line2Strings.get().get(0) + " | " + server);
+            } else {
+                rpc.setState(line2Strings.get().get(0));
+            }
         }
     }
 
@@ -123,60 +140,23 @@ public class xRPC extends Module {
     @EventHandler
     private void onTick(TickEvent.Post event) {
 
-        if (startDelayTicks < START_DELAY) {
-            startDelayTicks++;
-            return;
-        }
-
-        if (!autoStarted) {
-            autoStarted = true;
+        // auto start
+        if (!initialized) {
+            initialized = true;
             if (!this.isActive()) this.toggle();
+            return;
         }
 
         if (!ipcConnected) {
-            retryTicks++;
-            if (retryTicks >= RETRY_INTERVAL) {
-                retryTicks = 0;
-                connectIPC();
-            }
-            return;
-        }
-
-        forceReconnectTicks++;
-        if (forceReconnectTicks >= FORCE_RECONNECT_INTERVAL) {
-            forceReconnectTicks = 0;
-
-            try {
-                DiscordIPC.stop();
-            } catch (Exception ignored) {}
-
-            ipcConnected = false;
             connectIPC();
             return;
         }
 
-        updateRPC();
-    }
-
-    private void updateRPC() {
-        if (mc.player == null) {
-            rpc.setDetails("xA Addon");
-            rpc.setState("En el menu");
-        } else {
-            rpc.setDetails(line1Strings.get().get(0));
-
-            String server = getServerName();
-            if (server != null) {
-                rpc.setState(line2Strings.get().get(0) + " | " + server);
-            } else {
-                rpc.setState(line2Strings.get().get(0));
-            }
-        }
-
-        try {
-            DiscordIPC.setActivity(rpc);
-        } catch (Exception e) {
-            ipcConnected = false;
+        // 🔥 SOLO reconectar cada X tiempo (sin actualizar contenido)
+        reconnectTicks++;
+        if (reconnectTicks >= RECONNECT_INTERVAL) {
+            reconnectTicks = 0;
+            reconnectIPC();
         }
     }
 
