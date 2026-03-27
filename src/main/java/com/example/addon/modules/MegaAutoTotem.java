@@ -14,152 +14,115 @@ import net.minecraft.item.Items;
 import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
 import net.minecraft.network.packet.s2c.play.ExplosionS2CPacket;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.block.Blocks;
 
 public class MegaAutoTotem extends Module {
-    private final SettingGroup sgGeneral = settings.getDefaultGroup();
-    private final SettingGroup sgDouble = settings.createGroup("Double Hand");
 
-    private final Setting<Double> health = sgGeneral.add(new DoubleSetting.Builder()
-        .name("Health Threshold")
-        .defaultValue(6)
+    private final SettingGroup sg = settings.getDefaultGroup();
+
+    private final Setting<Boolean> strict = sg.add(new BoolSetting.Builder()
+        .name("Strict")
+        .defaultValue(true)
+        .build());
+
+    private final Setting<Boolean> doubleHand = sg.add(new BoolSetting.Builder()
+        .name("Double Hand")
+        .defaultValue(true)
+        .visible(() -> !strict.get())
+        .build());
+
+    private final Setting<Double> hp = sg.add(new DoubleSetting.Builder()
+        .name("HP")
+        .defaultValue(10)
         .min(0)
         .sliderMax(36)
+        .visible(() -> !strict.get())
         .build());
 
-    private final Setting<Boolean> predictExplosions = sgGeneral.add(new BoolSetting.Builder()
-        .name("Predict Explosions")
-        .defaultValue(true)
-        .build());
-
-    private final Setting<Boolean> strictMode = sgGeneral.add(new BoolSetting.Builder()
-        .name("Strict Mode")
-        .defaultValue(true)
-        .build());
-
-    private final Setting<Boolean> forceDouble = sgDouble.add(new BoolSetting.Builder()
-        .name("Force Double Hand")
-        .defaultValue(true)
-        .build());
-
-    private final Setting<Boolean> doubleOnlyOnLowHealth = sgDouble.add(new BoolSetting.Builder()
-        .name("Only on Low Health")
-        .defaultValue(false)
-        .visible(forceDouble::get)
-        .build());
+    private long last = 0;
 
     public MegaAutoTotem() {
-        super(AddonTemplate.CATEGORY, "xTotem", "Ultra Fast AutoTotem");
+        super(AddonTemplate.CATEGORY, "xTotem", " Simple AutoTotem ");
     }
 
     @EventHandler
-    private void onTick(TickEvent.Pre event) {
+    private void onTick(TickEvent.Pre e) {
         if (mc.player == null || mc.world == null) return;
+        if (System.currentTimeMillis() - last < 10) return;
 
-        refillHotbarTótem();
-
-        if (shouldHaveTotemOffhand()) {
-            equipTotem(true);
-        }
-
-        if (shouldHaveTotemMainhand()) {
-            equipTotem(false);
+        if (should()) {
+            offhand();
+            if (doubleHand.get() || strict.get()) mainhand();
+            last = System.currentTimeMillis();
         }
     }
 
     @EventHandler
-    private void onPacketReceive(PacketEvent.Receive event) {
-        if (predictExplosions.get() && event.packet instanceof ExplosionS2CPacket) {
-            forceImmediate();
-        }
-
-        if (event.packet instanceof EntityStatusS2CPacket packet) {
-            if (packet.getEntity(mc.world) == mc.player && packet.getStatus() == 2) {
-                if (mc.player.getHealth() <= health.get() + 2) forceImmediate();
-            }
+    private void onPacket(PacketEvent.Receive e) {
+        if (e.packet instanceof ExplosionS2CPacket) force();
+        if (e.packet instanceof EntityStatusS2CPacket p) {
+            if (p.getEntity(mc.world) == mc.player && p.getStatus() == 2) force();
         }
     }
 
-    private boolean shouldHaveTotemOffhand() {
-        if (mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) return false;
-        return mc.player.getHealth() + mc.player.getAbsorptionAmount() <= health.get() || isNearExplosive() || forceDouble.get();
+    private boolean should() {
+        float h = mc.player.getHealth() + mc.player.getAbsorptionAmount();
+
+        if (strict.get()) return h <= 12 || danger();
+        return h <= hp.get() || danger();
     }
 
-    private boolean shouldHaveTotemMainhand() {
-        if (!forceDouble.get()) return false;
-        if (mc.player.getMainHandStack().getItem() == Items.TOTEM_OF_UNDYING) return false;
-        if (doubleOnlyOnLowHealth.get() && (mc.player.getHealth() + mc.player.getAbsorptionAmount() > health.get())) return false;
-        return InvUtils.find(Items.TOTEM_OF_UNDYING).count() > 1;
+    private void force() {
+        offhand();
+        mainhand();
     }
 
-    private void equipTotem(boolean offhand) {
-        if (strictMode.get() && mc.currentScreen != null) return;
+    private void offhand() {
+        if (mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
 
-        if (offhand) {
-            FindItemResult totem = InvUtils.find(stack -> stack.getItem() == Items.TOTEM_OF_UNDYING, 9, 35);
-            if (!totem.found()) totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
+        FindItemResult t = InvUtils.find(Items.TOTEM_OF_UNDYING);
+        if (t.found()) InvUtils.move().from(t.slot()).toOffhand();
+    }
 
-            if (totem.found()) {
-                InvUtils.move().from(totem.slot()).toOffhand();
-            }
+    private void mainhand() {
+        if (mc.player.getMainHandStack().getItem() == Items.TOTEM_OF_UNDYING) return;
+
+        FindItemResult t = InvUtils.find(Items.TOTEM_OF_UNDYING);
+        if (!t.found()) return;
+
+        if (t.isHotbar()) {
+            mc.player.getInventory().selectedSlot = t.slot();
         } else {
-            FindItemResult hotbarTotem = InvUtils.findInHotbar(Items.TOTEM_OF_UNDYING);
-            if (hotbarTotem.found()) {
-                InvUtils.swap(hotbarTotem.slot(), false);
-            } else {
-                FindItemResult totem = InvUtils.find(stack -> stack.getItem() == Items.TOTEM_OF_UNDYING, 9, 35);
-                if (!totem.found()) totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
+            int s = empty();
+            if (s == -1) s = mc.player.getInventory().selectedSlot;
 
-                if (totem.found()) {
-                    int emptySlot = getEmptyHotbarSlot();
-                    if (emptySlot != -1) {
-                        InvUtils.move().from(totem.slot()).toHotbar(emptySlot);
-                        InvUtils.swap(emptySlot, false);
-                    } else {
-                        InvUtils.swap(totem.slot(), false);
-                    }
-                }
-            }
+            InvUtils.move().from(t.slot()).toHotbar(s);
+            mc.player.getInventory().selectedSlot = s;
         }
     }
 
-    private void refillHotbarTótem() {
-        if (strictMode.get() && mc.currentScreen != null) return;
-
-        if (!InvUtils.findInHotbar(Items.TOTEM_OF_UNDYING).found()) {
-            int emptySlot = getEmptyHotbarSlot();
-            if (emptySlot != -1) {
-                FindItemResult totem = InvUtils.find(stack -> stack.getItem() == Items.TOTEM_OF_UNDYING, 9, 35);
-                if (totem.found()) {
-                    InvUtils.move().from(totem.slot()).toHotbar(emptySlot);
-                }
-            }
-        }
-    }
-
-    private int getEmptyHotbarSlot() {
+    private int empty() {
         for (int i = 0; i < 9; i++) {
-            if (mc.player.getInventory().getStack(i).isEmpty()) {
-                return i;
-            }
+            if (mc.player.getInventory().getStack(i).isEmpty()) return i;
         }
         return -1;
     }
 
-    private void forceImmediate() {
-        if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) equipTotem(true);
-        if (forceDouble.get() && mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) equipTotem(false);
-    }
-
-    private boolean isNearExplosive() {
-        for (Entity entity : mc.world.getEntities()) {
-            if (entity instanceof EndCrystalEntity && mc.player.distanceTo(entity) <= 10) return true;
+    private boolean danger() {
+        for (Entity e : mc.world.getEntities()) {
+            if (e instanceof EndCrystalEntity && mc.player.distanceTo(e) <= 8) return true;
         }
+
         BlockPos p = mc.player.getBlockPos();
-        for (int x = -4; x <= 4; x++) {
-            for (int z = -4; z <= 4; z++) {
-                if (mc.world.getBlockState(p.add(x, 0, z)).getBlock() == net.minecraft.block.Blocks.RESPAWN_ANCHOR) return true;
+
+        for (int x = -3; x <= 3; x++) {
+            for (int z = -3; z <= 3; z++) {
+                if (mc.world.getBlockState(p.add(x, 0, z)).getBlock() == Blocks.RESPAWN_ANCHOR) {
+                    return true;
+                }
             }
         }
+
         return false;
     }
 
