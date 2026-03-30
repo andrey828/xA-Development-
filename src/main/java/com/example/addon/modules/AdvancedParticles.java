@@ -47,7 +47,7 @@ public class AdvancedParticles extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.world == null || mc.particleManager == null) return;
 
         // 1. AURA DEL JUGADOR
         if (auraPlayer.get()) {
@@ -56,17 +56,17 @@ public class AdvancedParticles extends Module {
             double z = mc.player.getZ() + Math.sin(ticks) * 0.8;
             double y = mc.player.getY() + 0.1;
 
-            // Volvemos a Vector3f porque la versión pública de addParticle suele preferirlo o manejarlo mejor
+            // Convertimos el color a Vector3f para el constructor de Dust
             Vector3f pColor = new Vector3f(color.get().r / 255f, color.get().g / 255f, color.get().b / 255f);
+            DustParticleEffect effect = new DustParticleEffect(pColor, 1.0f);
             
-            // USANDO EL MÉTODO PÚBLICO (6 parámetros: efecto, x, y, z, velX, velY, velZ)
-            mc.world.addParticle(new DustParticleEffect(pColor, 1.0f), x, y, z, 0, 0, 0);
+            // Usamos el ParticleManager directamente, que es público y siempre funciona
+            mc.particleManager.addParticle(effect, x, y, z, 0, 0, 0);
         }
 
         // 2. CRÍTICOS EXTRA
         if (extraCrits.get() && !mc.player.isOnGround() && mc.player.fallDistance > 0) {
-            // USANDO EL MÉTODO PÚBLICO
-            mc.world.addParticle(ParticleTypes.CRIT, mc.player.getX(), mc.player.getY(), mc.player.getZ(), 0.1, 0.1, 0.1);
+            mc.particleManager.addParticle(ParticleTypes.CRIT, mc.player.getX(), mc.player.getY(), mc.player.getZ(), 0, 0.1, 0);
         }
     }
 
