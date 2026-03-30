@@ -9,12 +9,11 @@ import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.particle.DustParticleEffect;
 import net.minecraft.particle.ParticleTypes;
-import org.joml.Vector3f;
 
 public class AdvancedParticles extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    // --- OPCIONES ---
+    // --- CONFIGURACIÓN ---
     private final Setting<Boolean> auraPlayer = sgGeneral.add(new BoolSetting.Builder()
         .name("aura-jugador")
         .description("Crea un anillo de partículas alrededor de ti.")
@@ -41,7 +40,6 @@ public class AdvancedParticles extends Module {
         .build());
 
     public AdvancedParticles() {
-        // Usando tu categoría personalizada y el nombre solicitado
         super(AddonTemplate.VISUALS, "xPartucules", "Control avanzado y visuales de partículas.");
     }
 
@@ -49,29 +47,33 @@ public class AdvancedParticles extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.world == null || mc.particleManager == null) return;
 
-        // 1. Lógica del Aura (Anillo Alrededor del Jugador)
+        // 1. AURA (Anillo)
         if (auraPlayer.get()) {
             ticks += 0.2;
             double x = mc.player.getX() + Math.cos(ticks) * 0.8;
             double z = mc.player.getZ() + Math.sin(ticks) * 0.8;
             double y = mc.player.getY() + 0.1;
 
-            Vector3f pColor = new Vector3f(color.get().r / 255f, color.get().g / 255f, color.get().b / 255f);
-            DustParticleEffect effect = new DustParticleEffect(pColor, 1.0f);
+            // FIX: Convertir SettingColor a un int (0xRRGGBB) para evitar error de Vector3f
+            int r = color.get().r & 0xFF;
+            int g = color.get().g & 0xFF;
+            int b = color.get().b & 0xFF;
+            int colorInt = (r << 16) | (g << 8) | b;
+
+            DustParticleEffect effect = new DustParticleEffect(colorInt, 1.0f);
             
-            // spawnParticle es el método público más seguro en 1.21.x
-            mc.world.addParticle(effect, x, y, z, 0, 0, 0);
+            // Usar mc.particleManager evita los métodos privados de ClientWorld
+            mc.particleManager.addParticle(effect, x, y, z, 0.0, 0.0, 0.0);
         }
 
-        // 2. Lógica de Críticos Plus
+        // 2. CRÍTICOS
         if (extraCrits.get() && !mc.player.isOnGround() && mc.player.fallDistance > 0.1) {
-            mc.world.addParticle(ParticleTypes.CRIT, mc.player.getX(), mc.player.getY(), mc.player.getZ(), 0, 0.1, 0);
+            mc.particleManager.addParticle(ParticleTypes.CRIT, mc.player.getX(), mc.player.getY(), mc.player.getZ(), 0.0, 0.1, 0.0);
         }
     }
 
-    // 3. Toggle de Todas las Partículas
     @EventHandler
     private void onParticle(ParticleEvent event) {
         if (!allParticles.get()) {
