@@ -24,24 +24,24 @@ public class xAnchor extends Module {
 
     // --- CONFIGURACIÓN ---
     private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder()
-        .name("Range")
-        .description("Rango de colocación y explosión.")
+        .name("range")
+        .description("Rango de acción.")
         .defaultValue(5.0)
         .min(1)
         .sliderMax(6)
         .build());
 
     private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder()
-        .name("Delay")
-        .description("Ticks de espera entre acciones.")
+        .name("delay")
+        .description("Ticks entre acciones.")
         .defaultValue(1)
         .min(0)
         .sliderMax(10)
         .build());
 
     private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder()
-        .name("Auto Swich")
-        .description("Cambia automáticamente a los materiales necesarios.")
+        .name("auto-switch")
+        .description("Cambia automáticamente de ítem.")
         .defaultValue(true)
         .build());
 
@@ -58,10 +58,8 @@ public class xAnchor extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null || mc.world.getDimension().respawnAnchorWorks()) {
-            // El ancla no explota en el Nether, así que el módulo debería desactivarse o no actuar.
-            return;
-        }
+        // FIX: En 1.21.x se usa !respawnAnchorWorks() para saber si explota
+        if (mc.player == null || mc.world == null || mc.world.getDimension().respawnAnchorWorks()) return;
 
         if (timer > 0) {
             timer--;
@@ -74,20 +72,19 @@ public class xAnchor extends Module {
 
         BlockPos targetPos = target.getBlockPos();
 
-        // 2. Lógica de estados del Ancla
-        // Buscamos si ya hay un ancla puesta cerca del target
+        // 2. Buscar ancla existente cerca del objetivo
         BlockPos anchorPos = findAnchor(targetPos);
 
         if (anchorPos == null) {
-            // No hay ancla: Colocar una
-            BlockPos placePos = targetPos.up(); // Intentar ponerla a la altura de la cabeza
+            // Colocar Ancla (Preferiblemente a los pies o cabeza del objetivo)
+            BlockPos placePos = targetPos.up();
             if (canPlaceAnchor(placePos)) {
                 if (placeBlock(placePos, Items.RESPAWN_ANCHOR)) {
                     timer = delay.get();
                 }
             }
         } else {
-            // Ya hay un ancla: Revisar si está cargada
+            // Lógica de Carga y Explosión
             int charges = mc.world.getBlockState(anchorPos).get(RespawnAnchorBlock.CHARGES);
 
             if (charges == 0) {
@@ -96,7 +93,8 @@ public class xAnchor extends Module {
                     timer = delay.get();
                 }
             } else {
-                // Explotar (clickear con cualquier otra cosa)
+                // Explotar (Usar cualquier cosa que NO sea Glowstone)
+                // Si tenemos el ancla en mano, mejor cambiar a otra cosa para explotar
                 if (interactBlock(anchorPos, null)) {
                     timer = delay.get();
                 }
@@ -114,7 +112,7 @@ public class xAnchor extends Module {
     }
 
     private boolean canPlaceAnchor(BlockPos pos) {
-        return mc.world.getBlockState(pos).isReplaceable() && PlayerUtils.distanceTo(pos) <= range.get();
+        return (mc.world.getBlockState(pos).isReplaceable() || mc.world.isAir(pos)) && PlayerUtils.distanceTo(pos) <= range.get();
     }
 
     private boolean placeBlock(BlockPos pos, net.minecraft.item.Item item) {
@@ -123,7 +121,7 @@ public class xAnchor extends Module {
 
         if (autoSwitch.get()) InvUtils.swap(findItem.slot(), false);
 
-        BlockHitResult hit = new BlockHitResult(new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5), Direction.UP, pos, false);
+        BlockHitResult hit = new BlockHitResult(new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5), Direction.UP, pos, false);
         mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hit);
         return true;
     }
