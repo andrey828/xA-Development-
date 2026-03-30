@@ -14,6 +14,7 @@ import org.joml.Vector3f;
 public class AdvancedParticles extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
+    // --- OPCIONES ---
     private final Setting<Boolean> auraPlayer = sgGeneral.add(new BoolSetting.Builder()
         .name("aura-jugador")
         .description("Crea un anillo de partículas alrededor de ti.")
@@ -40,6 +41,7 @@ public class AdvancedParticles extends Module {
         .build());
 
     public AdvancedParticles() {
+        // Usando tu categoría personalizada y el nombre solicitado
         super(AddonTemplate.VISUALS, "xPartucules", "Control avanzado y visuales de partículas.");
     }
 
@@ -47,29 +49,29 @@ public class AdvancedParticles extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.player == null || mc.world == null || mc.particleManager == null) return;
+        if (mc.player == null || mc.world == null) return;
 
-        // 1. AURA DEL JUGADOR
+        // 1. Lógica del Aura (Anillo Alrededor del Jugador)
         if (auraPlayer.get()) {
             ticks += 0.2;
             double x = mc.player.getX() + Math.cos(ticks) * 0.8;
             double z = mc.player.getZ() + Math.sin(ticks) * 0.8;
             double y = mc.player.getY() + 0.1;
 
-            // Convertimos el color a Vector3f para el constructor de Dust
             Vector3f pColor = new Vector3f(color.get().r / 255f, color.get().g / 255f, color.get().b / 255f);
             DustParticleEffect effect = new DustParticleEffect(pColor, 1.0f);
             
-            // Usamos el ParticleManager directamente, que es público y siempre funciona
-            mc.particleManager.addParticle(effect, x, y, z, 0, 0, 0);
+            // spawnParticle es el método público más seguro en 1.21.x
+            mc.world.addParticle(effect, x, y, z, 0, 0, 0);
         }
 
-        // 2. CRÍTICOS EXTRA
-        if (extraCrits.get() && !mc.player.isOnGround() && mc.player.fallDistance > 0) {
-            mc.particleManager.addParticle(ParticleTypes.CRIT, mc.player.getX(), mc.player.getY(), mc.player.getZ(), 0, 0.1, 0);
+        // 2. Lógica de Críticos Plus
+        if (extraCrits.get() && !mc.player.isOnGround() && mc.player.fallDistance > 0.1) {
+            mc.world.addParticle(ParticleTypes.CRIT, mc.player.getX(), mc.player.getY(), mc.player.getZ(), 0, 0.1, 0);
         }
     }
 
+    // 3. Toggle de Todas las Partículas
     @EventHandler
     private void onParticle(ParticleEvent event) {
         if (!allParticles.get()) {
