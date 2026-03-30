@@ -7,6 +7,7 @@ import meteordevelopment.meteorclient.mixininterface.IPlayerMoveC2SPacket;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -15,40 +16,77 @@ import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
-import net.minecraft.util.Hand;
 import net.minecraft.util.math.Vec3d;
+
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UltraMace extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private final SettingGroup sgExtra = settings.createGroup("Extra Heights (Max Power)");
+
+    private final Setting<Integer> blocksPerPacket = sgGeneral.add(new IntSetting.Builder()
+        .name("Blocks Per Packet").description("Debe ser menor a 10 para que alturas como 400 funcionen.")
+        .defaultValue(8).min(1).sliderRange(1, 15).build());
 
     private final Setting<Integer> fallHeight = sgGeneral.add(new IntSetting.Builder()
-        .name("mace-power")
-        .defaultValue(100)
-        .min(1)
-        .sliderRange(1, 1000)
-        .build());
+        .name("Mace Power").description("Altura del golpe principal.")
+        .defaultValue(23).min(1).sliderRange(1, 1000).build());
 
-    private final Setting<Integer> packetsPerHit = sgGeneral.add(new IntSetting.Builder()
-        .name("packets-per-hit")
-        .defaultValue(30)
-        .min(5)
-        .sliderMax(100)
-        .build());
+    private final Setting<Integer> attack1 = sgGeneral.add(new IntSetting.Builder()
+        .name("Hit 1").description("Altura del primer golpe.")
+        .defaultValue(23).min(1).sliderRange(1, 1000).build());
+
+    private final Setting<Integer> attack2 = sgGeneral.add(new IntSetting.Builder()
+        .name("Hit 2").description("Altura del segundo golpe.")
+        .defaultValue(40).min(1).sliderRange(1, 1000).build());
+
+    private final Setting<Integer> extraHitsAmount = sgGeneral.add(new IntSetting.Builder()
+        .name("Extra Hits Amount").description("Cuantos extra hits adicionales.")
+        .defaultValue(0).min(0).sliderRange(0, 50).build());
+
+    private final Setting<Integer> sendPacketsAmount = sgGeneral.add(new IntSetting.Builder()
+        .name("No Ground Packets").description("Paquetes sin suelo para TotemFail.")
+        .defaultValue(4).min(1).sliderRange(1, 20).build());
+
+    private final Setting<Boolean> alwaysTF = sgGeneral.add(new BoolSetting.Builder()
+        .name("Do TotemFail").description("Siempre hace TotemFail.")
+        .defaultValue(true).build());
+
+    private final Setting<Integer> hitAmount = sgGeneral.add(new IntSetting.Builder()
+        .name("Hit Amount").description("Cuantos hits por ataque.")
+        .defaultValue(1).min(1).sliderRange(1, 50).build());
 
     private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder()
-        .name("auto-switch")
-        .defaultValue(true)
-        .build());
+        .name("Auto Switch").description("Cambia automaticamente al Mace.")
+        .defaultValue(true).build());
 
+    private final List<Setting<Integer>> extraHeights = new ArrayList<>();
     private boolean isWorking = false;
 
     public UltraMace() {
-        super(AddonTemplate.CATEGORY, "xMace", "Maximum Mace Power");
+        super(AddonTemplate.CATEGORY, "xMace", "Maximum Mace Power - Low Packets.");
+
+        for (int i = 1; i <= 50; i++) {
+            int finalI = i;
+            extraHeights.add(sgExtra.add(new IntSetting.Builder()
+                .name("Extra Hit " + i)
+                .description("Altura del extra hit " + i)
+                .defaultValue(50 + (i * 50))
+                .min(1)
+                .sliderRange(1, 1000)
+                .visible(() -> extraHitsAmount.get() >= finalI)
+                .build()
+            ));
+        }
     }
 
     @EventHandler
     private void onSendPacket(PacketEvent.Send event) {
-        if (mc.player == null || isWorking) return;
+        if (mc.player == null || mc.getNetworkHandler() == null || isWorking) return;
+        if (event.packet instanceof IPlayerMoveC2SPacket move && move.meteor$getTag() == 1337) return;
+        if (SuperAura.isSendingAttack) return;
 
         if (event.packet instanceof PlayerInteractEntityC2SPacket packet) {
             IPlayerInteractEntityC2SPacket accessor = (IPlayerInteractEntityC2SPacket) packet;
@@ -61,9 +99,20 @@ public class UltraMace extends Module {
             event.cancel();
             isWorking = true;
 
-            int oldSlot = mc.player.getInventory().selectedSlot;
-            int maceSlot = -1;
+            int oldSlot = 0;
+            try {
+                Field field = mc.player.getInventory().getClass().getDeclaredField("selectedSlot");
+                field.setAccessible(true);
+                oldSlot = field.getInt(mc.player.getInventory());
+            } catch (Exception e) {
+                try {
+                    Field field = mc.player.getInventory().getClass().getDeclaredField("field_7545");
+                    field.setAccessible(true);
+                    oldSlot = field.getInt(mc.player.getInventory());
+                } catch (Exception ignored) {}
+            }
 
+            int maceSlot = -1;
             if (autoSwitch.get()) {
                 for (int i = 0; i < 9; i++) {
                     if (mc.player.getInventory().getStack(i).isOf(Items.MACE)) {
@@ -73,31 +122,83 @@ public class UltraMace extends Module {
                 }
             }
 
-            if (maceSlot != -1) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
+            boolean hasMace = maceSlot != -1 || mc.player.getMainHandStack().isOf(Items.MACE);
+            if (!hasMace) { isWorking = false; return; }
 
-            executePowerHit(target);
+            if (autoSwitch.get() && maceSlot != -1) {
+                mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
+            }
 
-            if (maceSlot != -1) mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
+            Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+
+            SuperAura aura = Modules.get().get(SuperAura.class);
+            boolean auraActive = aura != null && aura.isActive();
+
+            if (auraActive) {
+                aura.teleportToAndBack(target, () -> executeHits(target, origin), (pos, onGround) -> sendPos(pos.x, pos.y, pos.z, onGround));
+            } else {
+                executeHits(target, origin);
+            }
+
+            if (autoSwitch.get() && maceSlot != -1) {
+                mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(oldSlot));
+            }
 
             isWorking = false;
         }
     }
 
-    private void executePowerHit(Entity target) {
-        Vec3d pos = mc.player.getPos();
-        double h = fallHeight.get();
-        int steps = packetsPerHit.get();
+    private void executeHits(Entity target, Vec3d origin) {
+        double px = origin.x;
+        double py = origin.y;
+        double pz = origin.z;
+
+        if (alwaysTF.get()) {
+            for (int i = 0; i < hitAmount.get(); i++) {
+                performOptimizedHit(target, px, py, pz, attack1.get());
+                performOptimizedHit(target, px, py, pz, attack2.get());
+                performOptimizedHit(target, px, py, pz, attack2.get());
+
+                for (int j = 0; j < extraHitsAmount.get(); j++) {
+                    performOptimizedHit(target, px, py, pz, extraHeights.get(j).get());
+                }
+            }
+
+            for (int i = 0; i < sendPacketsAmount.get(); i++) {
+                sendPos(px, py + (i * 0.001), pz, false);
+            }
+            sendAttack(target);
+            sendPos(px, py, pz, true);
+
+        } else {
+            for (int i = 0; i < hitAmount.get(); i++) {
+                performOptimizedHit(target, px, py, pz, fallHeight.get());
+
+                for (int j = 0; j < extraHitsAmount.get(); j++) {
+                    performOptimizedHit(target, px, py, pz, extraHeights.get(j).get());
+                }
+            }
+
+            sendPos(px, py, pz, true);
+        }
+    }
+
+    private void performOptimizedHit(Entity target, double x, double y, double z, int height) {
+        int steps = Math.max(1, height / blocksPerPacket.get());
 
         for (int i = 1; i <= steps; i++) {
-            sendPos(pos.x, pos.y + (h * i / steps), pos.z, false);
+            sendPos(x, y + ((double) height * i / steps), z, false);
         }
 
-        sendPos(pos.x, pos.y, pos.z, false);
+        sendPos(x, y, z, false);
 
+        sendAttack(target);
+    }
+
+    private void sendAttack(Entity target) {
+        SuperAura.isSendingAttack = true;
         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
-        mc.player.swingHand(Hand.MAIN_HAND);
-
-        sendPos(pos.x, pos.y, pos.z, true);
+        SuperAura.isSendingAttack = false;
     }
 
     private void sendPos(double x, double y, double z, boolean onGround) {
