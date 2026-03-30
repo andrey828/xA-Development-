@@ -1,6 +1,6 @@
 package com.example.addon.modules;
 
-import com.example.addon.Addon; 
+import com.example.addon.AddonTemplate; // ¡Importación corregida!
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.events.world.ParticleEvent;
 import meteordevelopment.meteorclient.settings.*;
@@ -9,12 +9,12 @@ import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.particle.DustParticleEffect;
 import net.minecraft.particle.ParticleTypes;
-import org.joml.Vector3f;
+import net.minecraft.util.math.Vec3d;
 
 public class AdvancedParticles extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
-    // --- OPCIONES DE ACTIVACIÓN ---
+    // --- OPCIONES ---
     private final Setting<Boolean> auraPlayer = sgGeneral.add(new BoolSetting.Builder()
         .name("aura-jugador")
         .description("Crea un anillo de partículas alrededor de ti.")
@@ -42,7 +42,8 @@ public class AdvancedParticles extends Module {
         .build());
 
     public AdvancedParticles() {
-        super(Addon.VISUALS, "xPartucules", "Control avanzado y visuales de partículas.");
+        // Usamos AddonTemplate.VISUALS tal como lo tienes en tu proyecto
+        super(AddonTemplate.VISUALS, "xPartucules", "Control avanzado y visuales de partículas.");
     }
 
     private double ticks = 0;
@@ -51,22 +52,23 @@ public class AdvancedParticles extends Module {
     private void onTick(TickEvent.Post event) {
         if (mc.player == null || mc.world == null) return;
 
-        // 1. Lógica de RODEARE AL JUGADOR (Anillo)
+        // 1. Lógica de RODEAR AL JUGADOR
         if (auraPlayer.get()) {
             ticks += 0.2;
             double x = mc.player.getX() + Math.cos(ticks) * 0.8;
             double z = mc.player.getZ() + Math.sin(ticks) * 0.8;
             double y = mc.player.getY() + 0.1;
 
-            Vector3f pColor = new Vector3f(color.get().r / 255f, color.get().g / 255f, color.get().b / 255f);
-            
-            // Usamos 'true' para forzar el renderizado (alwaysSpawn)
-            mc.world.addParticle(new DustParticleEffect(pColor, 1.0f), true, x, y, z, 0, 0, 0);
+            // Empaquetamos el SettingColor en un Integer (RGB) para la API de Fabric actual
+            int colorInt = ((color.get().r & 0xFF) << 16) | ((color.get().g & 0xFF) << 8) | (color.get().b & 0xFF);
+
+            // Método con los 9 argumentos requeridos
+            mc.world.addParticle(new DustParticleEffect(colorInt, 1.0f), true, true, x, y, z, 0.0, 0.0, 0.0);
         }
 
         // 2. Lógica de CRÍTICOS EXTRA
         if (extraCrits.get() && !mc.player.isOnGround() && mc.player.fallDistance > 0) {
-            mc.world.addParticle(ParticleTypes.CRIT, true, mc.player.getX(), mc.player.getY(), mc.player.getZ(), 0.1, 0.1, 0.1);
+            mc.world.addParticle(ParticleTypes.CRIT, true, true, mc.player.getX(), mc.player.getY(), mc.player.getZ(), 0.1, 0.1, 0.1);
         }
     }
 
