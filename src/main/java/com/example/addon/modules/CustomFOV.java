@@ -14,7 +14,7 @@ public class CustomFOV extends Module {
     private final Setting<Integer> FOV = sgGeneral.add(
         new IntSetting.Builder()
             .name("fov")
-            .defaultValue(120)
+            .defaultValue(75)
             .range(0, 358)
             .sliderRange(0, 358)
             .build()
