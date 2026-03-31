@@ -1,14 +1,18 @@
 package com.example.addon.modules;
 
 import com.example.addon.AddonTemplate;
+import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
+import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.RespawnAnchorBlock;
 import net.minecraft.entity.player.PlayerEntity;
@@ -44,23 +48,32 @@ public class xAnchor extends Module {
         .defaultValue(true)
         .build());
 
+    private static final Color FILL_COLOR    = new Color(0, 100, 160, 60);
+    private static final Color OUTLINE_COLOR = new Color(0, 150, 210, 200);
+
     public xAnchor() {
         super(AddonTemplate.CATEGORY, "xAnchor", "Anchor Aura: Coloca, carga y explota.");
     }
 
     private int timer;
+    private BlockPos renderPos = null;
 
     @Override
     public void onActivate() {
         timer = 0;
+        renderPos = null;
+    }
+
+    @Override
+    public void onDeactivate() {
+        renderPos = null;
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
 
-        // FIX: Comprobamos la dimensión de forma segura. 
-        // Si estamos en el Nether, el ancla NO explota, así que paramos el módulo.
+
         if (mc.world.getRegistryKey().getValue().getPath().contains("the_nether")) return;
 
         if (timer > 0) {
@@ -69,68 +82,119 @@ public class xAnchor extends Module {
         }
 
         PlayerEntity target = TargetUtils.getPlayerTarget(range.get(), SortPriority.LowestHealth);
-        if (target == null) return;
+        if (target == null) {
+            renderPos = null;
+            return;
+        }
 
-        BlockPos targetPos = target.getBlockPos();
-        BlockPos anchorPos = findAnchor(targetPos);
+     
+        BlockPos anchorPos = findAnchor(target.getBlockPos());
 
-        if (anchorPos == null) {
-            // Intentar colocar ancla en la cabeza o pies del objetivo
-            BlockPos placePos = targetPos.up();
-            if (canPlaceAnchor(placePos)) {
-                if (placeBlock(placePos, Items.RESPAWN_ANCHOR)) {
-                    timer = delay.get();
-                }
-            }
-        } else {
+        if (anchorPos != null) {
+            renderPos = anchorPos;
             int charges = mc.world.getBlockState(anchorPos).get(RespawnAnchorBlock.CHARGES);
 
-            if (charges == 0) {
-                // Cargar
-                if (interactBlock(anchorPos, Items.GLOWSTONE)) {
-                    timer = delay.get();
-                }
+            if (charges < RespawnAnchorBlock.MAX_CHARGES) {
+               
+                chargeAnchor(anchorPos);
             } else {
-                // Explotar (usando la mano o cualquier item que no sea Glowstone)
-                if (interactBlock(anchorPos, null)) {
-                    timer = delay.get();
-                }
+       
+                explodeAnchor(anchorPos);
+            }
+            timer = delay.get();
+
+        } else {
+
+            BlockPos placePos = findPlacePos(target.getBlockPos());
+            if (placePos != null) {
+                renderPos = placePos;
+                placeAnchor(placePos);
+                timer = delay.get();
+            } else {
+                renderPos = null;
             }
         }
     }
 
-    private BlockPos findAnchor(BlockPos pos) {
-        for (BlockPos checkPos : BlockPos.iterate(pos.add(-1, -1, -1), pos.add(1, 2, 1))) {
-            if (mc.world.getBlockState(checkPos).getBlock() == Blocks.RESPAWN_ANCHOR) {
-                return checkPos.toImmutable();
+    @EventHandler
+    private void onRender3D(Render3DEvent event) {
+        if (renderPos == null) return;
+        event.renderer.box(
+            renderPos,
+            FILL_COLOR,
+            OUTLINE_COLOR,
+            ShapeMode.Both,
+            0
+        );
+    }
+
+    private BlockPos findPlacePos(BlockPos targetPos) {
+        for (BlockPos pos : BlockPos.iterate(targetPos.add(-2, -1, -2), targetPos.add(2, 1, 2))) {
+            BlockState state = mc.world.getBlockState(pos);
+            BlockPos above = pos.up();
+
+            if (!state.isSolid()) continue;                           
+            if (!mc.world.isAir(above)) continue;                   
+            if (PlayerUtils.distanceTo(above) > range.get()) continue;
+
+            return above.toImmutable(); 
+        }
+        return null;
+    }
+
+    // Busca un ancla ya colocada cerca del objetivo
+    private BlockPos findAnchor(BlockPos targetPos) {
+        for (BlockPos pos : BlockPos.iterate(targetPos.add(-2, -1, -2), targetPos.add(2, 2, 2))) {
+            if (mc.world.getBlockState(pos).getBlock() == Blocks.RESPAWN_ANCHOR) {
+                if (PlayerUtils.distanceTo(pos) <= range.get()) {
+                    return pos.toImmutable();
+                }
             }
         }
         return null;
     }
 
-    private boolean canPlaceAnchor(BlockPos pos) {
-        return (mc.world.getBlockState(pos).isReplaceable() || mc.world.isAir(pos)) && PlayerUtils.distanceTo(pos) <= range.get();
-    }
+    // Coloca el ancla interactuando con la cara superior del bloque de soporte
+    private void placeAnchor(BlockPos pos) {
+        var found = InvUtils.findInHotbar(Items.RESPAWN_ANCHOR);
+        if (!found.found()) return;
+        if (autoSwitch.get()) InvUtils.swap(found.slot(), false);
 
-    private boolean placeBlock(BlockPos pos, net.minecraft.item.Item item) {
-        var findItem = InvUtils.findInHotbar(item);
-        if (!findItem.found()) return false;
-        if (autoSwitch.get()) InvUtils.swap(findItem.slot(), false);
-
-        BlockHitResult hit = new BlockHitResult(new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5), Direction.UP, pos, false);
+        // Interactuamos con la cara superior del bloque debajo de pos
+        BlockPos support = pos.down();
+        Vec3d hitVec = new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+        BlockHitResult hit = new BlockHitResult(hitVec, Direction.UP, support, false);
         mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hit);
-        return true;
+        mc.player.swingHand(Hand.MAIN_HAND);
     }
 
-    private boolean interactBlock(BlockPos pos, net.minecraft.item.Item item) {
-        if (item != null) {
-            var findItem = InvUtils.findInHotbar(item);
-            if (!findItem.found()) return false;
-            if (autoSwitch.get()) InvUtils.swap(findItem.slot(), false);
+    // Carga el ancla con glowstone
+    private void chargeAnchor(BlockPos pos) {
+        var found = InvUtils.findInHotbar(Items.GLOWSTONE);
+        if (!found.found()) return;
+        if (autoSwitch.get()) InvUtils.swap(found.slot(), false);
+
+        Vec3d hitVec = new Vec3d(pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5);
+        BlockHitResult hit = new BlockHitResult(hitVec, Direction.UP, pos, false);
+        mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hit);
+        mc.player.swingHand(Hand.MAIN_HAND);
+    }
+
+    // Explota el ancla — el jugador NO debe tener glowstone en mano
+    private void explodeAnchor(BlockPos pos) {
+        // Si tiene glowstone en mano, cambiar a cualquier otro slot
+        if (mc.player.getMainHandStack().getItem() == Items.GLOWSTONE) {
+            for (int i = 0; i < 9; i++) {
+                if (mc.player.getInventory().getStack(i).getItem() != Items.GLOWSTONE) {
+                    InvUtils.swap(i, false);
+                    break;
+                }
+            }
         }
 
-        BlockHitResult hit = new BlockHitResult(new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5), Direction.UP, pos, false);
+        Vec3d hitVec = new Vec3d(pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5);
+        BlockHitResult hit = new BlockHitResult(hitVec, Direction.UP, pos, false);
         mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hit);
-        return true;
+        mc.player.swingHand(Hand.MAIN_HAND);
     }
 }
