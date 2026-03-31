@@ -90,26 +90,46 @@ public class MegaAutoTotem extends Module {
     private void equip() {
         if (mc.player == null) return;
 
-        // Offhand siempre tiene prioridad
+        // --- OFFHAND ---
         if (mc.player.getOffHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
             FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
             if (!totem.found()) return;
-            InvUtils.move().from(totem.slot()).toOffhand();
+
+            if (totem.isOffhand()) {
+                // Ya está en offhand, no hacer nada
+            } else if (totem.isHotbar()) {
+                // Está en hotbar: swap directo a offhand
+                InvUtils.move().from(totem.slot()).toOffhand();
+            } else {
+                // Está en inventario: mover a offhand
+                InvUtils.move().from(totem.slot()).toOffhand();
+            }
         }
 
-        // Double Hand — busca totem fresco después de mover al offhand
+        // --- MAINHAND (Double Hand) ---
         if (!strict.get() && doubleHand.get()) {
             if (mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
+
+                // Busca totem fresco (distinto al que está en offhand)
                 FindItemResult totem2 = InvUtils.find(Items.TOTEM_OF_UNDYING);
                 if (!totem2.found()) return;
 
-                int hotbarSlot = totem2.isHotbar() ? totem2.slot() : getEmptyHotbarSlot();
-                if (hotbarSlot == -1) return;
-
-                if (!totem2.isHotbar()) {
-                    InvUtils.move().from(totem2.slot()).toHotbar(hotbarSlot);
+                if (totem2.isHotbar()) {
+                    // Ya está en hotbar: solo hacer swap al slot activo
+                    InvUtils.swap(totem2.slot(), false);
+                } else {
+                    // Está en inventario: busca slot vacío en hotbar y muévelo
+                    int empty = getEmptyHotbarSlot();
+                    if (empty == -1) {
+                        // No hay slot vacío: usar slot activo actual
+                        int current = mc.player.getInventory().getSelectedSlot();
+                        InvUtils.move().from(totem2.slot()).toHotbar(current);
+                        InvUtils.swap(current, false);
+                    } else {
+                        InvUtils.move().from(totem2.slot()).toHotbar(empty);
+                        InvUtils.swap(empty, false);
+                    }
                 }
-                InvUtils.swap(hotbarSlot, false);
             }
         }
     }
@@ -119,7 +139,8 @@ public class MegaAutoTotem extends Module {
         for (int i = 0; i < 9; i++) {
             if (!mc.player.getInventory().getStack(i).isEmpty()) continue;
             FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
-            if (totem.found() && totem.slot() >= 9) {
+            // Solo mover totems desde inventario principal, no desde hotbar ni offhand
+            if (totem.found() && !totem.isHotbar() && !totem.isOffhand()) {
                 InvUtils.move().from(totem.slot()).toHotbar(i);
             }
         }
