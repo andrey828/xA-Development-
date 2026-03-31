@@ -45,7 +45,7 @@ public class xAnchor extends Module {
         .build());
 
     public xAnchor() {
-        super(AddonTemplate.VISUALS, "xAnchor", "Anchor Aura: Coloca, carga y explota.");
+        super(AddonTemplate.CATEGORY, "xAnchor", "Anchor Aura: Coloca, carga y explota.");
     }
 
     private int timer;
