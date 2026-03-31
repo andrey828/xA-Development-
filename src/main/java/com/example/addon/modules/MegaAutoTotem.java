@@ -14,6 +14,7 @@ import net.minecraft.item.Items;
 import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
 import net.minecraft.network.packet.s2c.play.ExplosionS2CPacket;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.block.Blocks;
 
 public class MegaAutoTotem extends Module {
@@ -39,11 +40,10 @@ public class MegaAutoTotem extends Module {
         .visible(() -> !strict.get())
         .build());
 
-    // Cooldowns separados: tick normal vs paquete de emergencia
     private long lastTick = 0;
     private long lastPacket = 0;
-    private static final long TICK_COOLDOWN = 50;    // 1 tick = ~50ms
-    private static final long PACKET_COOLDOWN = 5;   // Mínimo entre paquetes
+    private static final long TICK_COOLDOWN = 50;
+    private static final long PACKET_COOLDOWN = 5;
 
     public MegaAutoTotem() {
         super(AddonTemplate.CATEGORY, "xTotem", "AutoTotem con Double Hand, Strict Mode y Hotbar Refill");
@@ -56,10 +56,7 @@ public class MegaAutoTotem extends Module {
         if (now - lastTick < TICK_COOLDOWN) return;
         lastTick = now;
 
-        // FIX: primero equipar, luego refill — así find() encuentra totems reales
-        if (should()) {
-            equip();
-        }
+        if (should()) equip();
         refillHotbar();
     }
 
@@ -100,31 +97,28 @@ public class MegaAutoTotem extends Module {
             InvUtils.move().from(totem.slot()).toOffhand();
         }
 
-        // FIX: Double Hand — busca totem fresco DESPUÉS de mover al offhand
+        // Double Hand — busca totem fresco después de mover al offhand
         if (!strict.get() && doubleHand.get()) {
             if (mc.player.getMainHandStack().getItem() != Items.TOTEM_OF_UNDYING) {
                 FindItemResult totem2 = InvUtils.find(Items.TOTEM_OF_UNDYING);
                 if (!totem2.found()) return;
 
-                int slot = mc.player.getInventory().selectedSlot;
-                // Si el slot activo tiene algo que no es totem, busca slot vacío en hotbar
-                if (!mc.player.getMainHandStack().isEmpty()) {
-                    slot = getEmptyHotbarSlot();
-                    if (slot == -1) return; // No hay slot libre, no forzar
-                    InvUtils.swap(slot, false);
+                int hotbarSlot = totem2.isHotbar() ? totem2.slot() : getEmptyHotbarSlot();
+                if (hotbarSlot == -1) return;
+
+                if (!totem2.isHotbar()) {
+                    InvUtils.move().from(totem2.slot()).toHotbar(hotbarSlot);
                 }
-                InvUtils.move().from(totem2.slot()).toHotbar(slot);
+                InvUtils.swap(hotbarSlot, false);
             }
         }
     }
 
-    // FIX: refill solo rellena slots vacíos, sin mover el mismo totem dos veces
     private void refillHotbar() {
         if (mc.player == null) return;
         for (int i = 0; i < 9; i++) {
             if (!mc.player.getInventory().getStack(i).isEmpty()) continue;
             FindItemResult totem = InvUtils.find(Items.TOTEM_OF_UNDYING);
-            // Solo mover si el totem no está ya en hotbar (slot >= 9)
             if (totem.found() && totem.slot() >= 9) {
                 InvUtils.move().from(totem.slot()).toHotbar(i);
             }
@@ -139,17 +133,14 @@ public class MegaAutoTotem extends Module {
         return -1;
     }
 
-    // FIX: usa AABB en lugar de iterar todas las entidades
     private boolean danger() {
         if (mc.player == null || mc.world == null) return false;
 
-        // Cristales cercanos — búsqueda por caja, mucho más eficiente
-        net.minecraft.util.math.Box box = mc.player.getBoundingBox().expand(8);
+        Box box = mc.player.getBoundingBox().expand(8);
         for (Entity e : mc.world.getOtherEntities(mc.player, box)) {
             if (e instanceof EndCrystalEntity) return true;
         }
 
-        // Respawn Anchors cercanos
         BlockPos p = mc.player.getBlockPos();
         for (int x = -3; x <= 3; x++) {
             for (int z = -3; z <= 3; z++) {
