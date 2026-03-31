@@ -7,8 +7,9 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
-import meteordevelopment.meteorclient.utils.entity.SortPriority; // Nueva importación necesaria
+import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Items;
 import net.minecraft.util.Hand;
@@ -67,6 +68,15 @@ public class xCrystal extends Module {
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
 
+        // --- EXPLOTAR cristales existentes primero ---
+        for (EndCrystalEntity crystal : mc.world.getEntitiesByClass(
+                EndCrystalEntity.class,
+                mc.player.getBoundingBox().expand(placeRange.get()),
+                e -> true)) {
+            mc.interactionManager.attackEntity(mc.player, crystal);
+            mc.player.swingHand(Hand.MAIN_HAND);
+        }
+
         if (timer > 0) {
             timer--;
             return;
@@ -76,7 +86,7 @@ public class xCrystal extends Module {
         if (target == null) return;
 
         BlockPos placePos = findPlacePos(target);
-        
+
         if (placePos != null) {
             if (placeCrystal(placePos)) {
                 timer = placeDelay.get();
@@ -86,8 +96,7 @@ public class xCrystal extends Module {
 
     private BlockPos findPlacePos(PlayerEntity target) {
         BlockPos targetPos = target.getBlockPos();
-        
-        // Escaneamos área cercana al objetivo
+
         for (BlockPos pos : BlockPos.iterate(targetPos.add(-2, -1, -2), targetPos.add(2, 1, 2))) {
             if (canPlaceCrystal(pos)) {
                 if (PlayerUtils.distanceTo(pos) <= placeRange.get()) {
@@ -117,7 +126,7 @@ public class xCrystal extends Module {
 
         Vec3d hitVec = new Vec3d(pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5);
         BlockHitResult result = new BlockHitResult(hitVec, Direction.UP, pos, false);
-        
+
         mc.interactionManager.interactBlock(mc.player, hand, result);
         return true;
     }
