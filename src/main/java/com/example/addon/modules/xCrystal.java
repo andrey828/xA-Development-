@@ -33,7 +33,7 @@ public class xCrystal extends Module {
 
     private final Setting<Double> placeRange = sgGeneral.add(new DoubleSetting.Builder()
         .name("Place Range")
-        .description("Distancia máxima para colocar el cristal.")
+        .description("Distancia máxima para colocar cristal/obsidiana.")
         .defaultValue(4.5)
         .min(1)
         .sliderMax(6)
@@ -65,7 +65,13 @@ public class xCrystal extends Module {
 
     private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder()
         .name("Auto Switch")
-        .description("Cambia al cristal automáticamente.")
+        .description("Cambia al cristal/obsidiana automáticamente.")
+        .defaultValue(true)
+        .build());
+
+    private final Setting<Boolean> placeObsidian = sgGeneral.add(new BoolSetting.Builder()
+        .name("Place Obsidian")
+        .description("Coloca obsidiana automáticamente donde se necesite.")
         .defaultValue(true)
         .build());
 
@@ -77,15 +83,17 @@ public class xCrystal extends Module {
 
     private int placeTimer = 0;
     private int explodeTimer = 0;
+    private int prevSlot = -1;
 
     public xCrystal() {
-        super(AddonTemplate.CATEGORY, "xCrystal", "Crystal Aura funcional para 1.21.x");
+        super(AddonTemplate.CATEGORY, "xCrystal", "Crystal Aura con Auto Obsidian para 1.21.x");
     }
 
     @Override
     public void onActivate() {
         placeTimer = 0;
         explodeTimer = 0;
+        prevSlot = -1;
     }
 
     @EventHandler
@@ -94,25 +102,22 @@ public class xCrystal extends Module {
 
         PlayerEntity target = TargetUtils.getPlayerTarget(targetRange.get(), SortPriority.LowestHealth);
 
-        // --- EXPLOTAR ---
         if (explodeTimer <= 0) {
             for (EndCrystalEntity crystal : mc.world.getEntitiesByClass(
                     EndCrystalEntity.class,
                     mc.player.getBoundingBox().expand(explodeRange.get()),
                     e -> true)) {
 
-                // Si onlyExplodeNear está activo, solo explotar cristales cerca del objetivo
                 if (onlyExplodeNear.get() && target != null) {
                     if (crystal.distanceTo(target) > placeRange.get() + 2) continue;
                 }
 
-                double dist = mc.player.distanceTo(crystal);
-                if (dist > explodeRange.get()) continue;
+                if (mc.player.distanceTo(crystal) > explodeRange.get()) continue;
 
                 mc.interactionManager.attackEntity(mc.player, crystal);
                 mc.player.swingHand(Hand.MAIN_HAND);
                 explodeTimer = explodeDelay.get();
-                break; // un cristal por tick para no spamear
+                break;
             }
         } else {
             explodeTimer--;
@@ -120,11 +125,22 @@ public class xCrystal extends Module {
 
         if (target == null) return;
 
-        // --- COLOCAR ---
         if (placeTimer <= 0) {
             BlockPos placePos = findPlacePos(target);
-            if (placePos != null && placeCrystal(placePos)) {
-                placeTimer = placeDelay.get();
+
+            if (placePos != null) {
+                var baseBlock = mc.world.getBlockState(placePos).getBlock();
+                boolean needsObsidian = baseBlock != Blocks.OBSIDIAN && baseBlock != Blocks.BEDROCK;
+
+                if (needsObsidian && placeObsidian.get()) {
+                    if (placeObsidianAt(placePos)) {
+                        placeTimer = placeDelay.get();
+                    }
+                } else if (!needsObsidian) {
+                    if (placeCrystal(placePos)) {
+                        placeTimer = placeDelay.get();
+                    }
+                }
             }
         } else {
             placeTimer--;
@@ -133,32 +149,74 @@ public class xCrystal extends Module {
 
     private BlockPos findPlacePos(PlayerEntity target) {
         BlockPos targetPos = target.getBlockPos();
-        BlockPos bestPos = null;
-        double bestDmg = -1;
+        BlockPos bestCrystalPos = null;
+        BlockPos bestObsidianPos = null;
+        double bestCrystalDist = Double.MAX_VALUE;
+        double bestObsidianDist = Double.MAX_VALUE;
 
         for (BlockPos pos : BlockPos.iterate(targetPos.add(-2, -1, -2), targetPos.add(2, 1, 2))) {
-            if (!canPlaceCrystal(pos)) continue;
             if (PlayerUtils.distanceTo(pos) > placeRange.get()) continue;
 
-            // Elige la posición más cercana al objetivo para maximizar daño
-            double dist = target.getBlockPos().getSquaredDistance(pos);
-            if (bestPos == null || dist < bestDmg) {
-                bestDmg = dist;
-                bestPos = pos.toImmutable();
+            var block = mc.world.getBlockState(pos).getBlock();
+
+            if ((block == Blocks.OBSIDIAN || block == Blocks.BEDROCK) && mc.world.isAir(pos.up())) {
+                Box checkBox = new Box(pos.up());
+                if (mc.world.getEntitiesByClass(EndCrystalEntity.class, checkBox, e -> true).isEmpty()) {
+                    double dist = target.getBlockPos().getSquaredDistance(pos);
+                    if (dist < bestCrystalDist) {
+                        bestCrystalDist = dist;
+                        bestCrystalPos = pos.toImmutable();
+                    }
+                }
+            }
+
+            if (placeObsidian.get() && block == Blocks.AIR) {
+                BlockPos below = pos.down();
+                if (mc.world.getBlockState(below).isSolidBlock(mc.world, below) && mc.world.isAir(pos.up())) {
+                    double dist = target.getBlockPos().getSquaredDistance(pos);
+                    if (dist < bestObsidianDist) {
+                        bestObsidianDist = dist;
+                        bestObsidianPos = pos.toImmutable();
+                    }
+                }
             }
         }
-        return bestPos;
+
+        return bestCrystalPos != null ? bestCrystalPos : bestObsidianPos;
     }
 
-    private boolean canPlaceCrystal(BlockPos pos) {
-        if (mc.world == null) return false;
-        var block = mc.world.getBlockState(pos).getBlock();
-        if (block != Blocks.OBSIDIAN && block != Blocks.BEDROCK) return false;
-        if (!mc.world.isAir(pos.up())) return false;
+    private boolean placeObsidianAt(BlockPos pos) {
+        if (mc.player == null || mc.interactionManager == null) return false;
 
-        // Verifica que no haya ya un cristal encima
-        Box checkBox = new Box(pos.up());
-        return mc.world.getEntitiesByClass(EndCrystalEntity.class, checkBox, e -> true).isEmpty();
+        var obsidian = InvUtils.findInHotbar(Items.OBSIDIAN);
+        if (!obsidian.found()) {
+            var obsidianInv = InvUtils.find(Items.OBSIDIAN);
+            if (!obsidianInv.found()) return false;
+            int empty = getEmptyHotbarSlot();
+            if (empty == -1) empty = mc.player.getInventory().getSelectedSlot();
+            InvUtils.move().from(obsidianInv.slot()).toHotbar(empty);
+            obsidian = InvUtils.findInHotbar(Items.OBSIDIAN);
+            if (!obsidian.found()) return false;
+        }
+
+        if (autoSwitch.get()) {
+            prevSlot = mc.player.getInventory().getSelectedSlot();
+            InvUtils.swap(obsidian.slot(), false);
+        }
+
+        Hand hand = Hand.MAIN_HAND;
+        Vec3d hitVec = new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+        BlockHitResult result = new BlockHitResult(hitVec, Direction.UP, pos.down(), false);
+
+        mc.interactionManager.interactBlock(mc.player, hand, result);
+        mc.player.swingHand(hand);
+
+        if (autoSwitch.get() && prevSlot != -1) {
+            InvUtils.swap(prevSlot, false);
+            prevSlot = -1;
+        }
+
+        return true;
     }
 
     private boolean placeCrystal(BlockPos pos) {
@@ -181,5 +239,13 @@ public class xCrystal extends Module {
         mc.interactionManager.interactBlock(mc.player, hand, result);
         mc.player.swingHand(hand);
         return true;
+    }
+
+    private int getEmptyHotbarSlot() {
+        if (mc.player == null) return -1;
+        for (int i = 0; i < 9; i++) {
+            if (mc.player.getInventory().getStack(i).isEmpty()) return i;
+        }
+        return -1;
     }
 }
