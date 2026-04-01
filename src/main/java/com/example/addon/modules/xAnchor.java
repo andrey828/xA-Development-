@@ -34,10 +34,26 @@ public class xAnchor extends Module {
         .sliderMax(6)
         .build());
 
-    private final Setting<Integer> delay = sgGeneral.add(new IntSetting.Builder()
-        .name("delay")
-        .description("Ticks entre acciones.")
-        .defaultValue(1)
+    private final Setting<Integer> placeDelay = sgGeneral.add(new IntSetting.Builder()
+        .name("place-delay")
+        .description("Ticks entre colocaciones.")
+        .defaultValue(0)
+        .min(0)
+        .sliderMax(10)
+        .build());
+
+    private final Setting<Integer> chargeDelay = sgGeneral.add(new IntSetting.Builder()
+        .name("charge-delay")
+        .description("Ticks entre cargas.")
+        .defaultValue(0)
+        .min(0)
+        .sliderMax(10)
+        .build());
+
+    private final Setting<Integer> explodeDelay = sgGeneral.add(new IntSetting.Builder()
+        .name("explode-delay")
+        .description("Ticks entre explosiones.")
+        .defaultValue(0)
         .min(0)
         .sliderMax(10)
         .build());
@@ -48,19 +64,45 @@ public class xAnchor extends Module {
         .defaultValue(true)
         .build());
 
+    private final Setting<Boolean> airPlace = sgGeneral.add(new BoolSetting.Builder()
+        .name("air-place")
+        .description("Coloca el ancla en el aire sin bloque de soporte.")
+        .defaultValue(true)
+        .build());
+
+    private final Setting<Integer> multiCharge = sgGeneral.add(new IntSetting.Builder()
+        .name("multi-charge")
+        .description("Cargas por tick (más = más rápido).")
+        .defaultValue(4)
+        .min(1)
+        .sliderMax(4)
+        .build());
+
+    private final Setting<Integer> multiExplode = sgGeneral.add(new IntSetting.Builder()
+        .name("multi-explode")
+        .description("Explosiones por tick.")
+        .defaultValue(3)
+        .min(1)
+        .sliderMax(5)
+        .build());
+
     private static final Color FILL_COLOR    = new Color(0, 100, 160, 60);
     private static final Color OUTLINE_COLOR = new Color(0, 150, 210, 200);
+
+    private int placeTimer = 0;
+    private int chargeTimer = 0;
+    private int explodeTimer = 0;
+    private BlockPos renderPos = null;
 
     public xAnchor() {
         super(AddonTemplate.CATEGORY, "xAnchor", "Anchor Aura: Coloca, carga y explota.");
     }
 
-    private int timer;
-    private BlockPos renderPos = null;
-
     @Override
     public void onActivate() {
-        timer = 0;
+        placeTimer = 0;
+        chargeTimer = 0;
+        explodeTimer = 0;
         renderPos = null;
     }
 
@@ -72,14 +114,7 @@ public class xAnchor extends Module {
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
-
-
         if (mc.world.getRegistryKey().getValue().getPath().contains("the_nether")) return;
-
-        if (timer > 0) {
-            timer--;
-            return;
-        }
 
         PlayerEntity target = TargetUtils.getPlayerTarget(range.get(), SortPriority.LowestHealth);
         if (target == null) {
@@ -87,7 +122,6 @@ public class xAnchor extends Module {
             return;
         }
 
-     
         BlockPos anchorPos = findAnchor(target.getBlockPos());
 
         if (anchorPos != null) {
@@ -95,23 +129,36 @@ public class xAnchor extends Module {
             int charges = mc.world.getBlockState(anchorPos).get(RespawnAnchorBlock.CHARGES);
 
             if (charges < RespawnAnchorBlock.MAX_CHARGES) {
-               
-                chargeAnchor(anchorPos);
+                if (chargeTimer <= 0) {
+                    for (int i = 0; i < multiCharge.get(); i++) {
+                        chargeAnchor(anchorPos);
+                    }
+                    chargeTimer = chargeDelay.get();
+                } else {
+                    chargeTimer--;
+                }
             } else {
-       
-                explodeAnchor(anchorPos);
+                if (explodeTimer <= 0) {
+                    for (int i = 0; i < multiExplode.get(); i++) {
+                        explodeAnchor(anchorPos);
+                    }
+                    explodeTimer = explodeDelay.get();
+                } else {
+                    explodeTimer--;
+                }
             }
-            timer = delay.get();
-
         } else {
-
-            BlockPos placePos = findPlacePos(target.getBlockPos());
-            if (placePos != null) {
-                renderPos = placePos;
-                placeAnchor(placePos);
-                timer = delay.get();
+            if (placeTimer <= 0) {
+                BlockPos placePos = findPlacePos(target.getBlockPos());
+                if (placePos != null) {
+                    renderPos = placePos;
+                    placeAnchor(placePos);
+                    placeTimer = placeDelay.get();
+                } else {
+                    renderPos = null;
+                }
             } else {
-                renderPos = null;
+                placeTimer--;
             }
         }
     }
@@ -119,30 +166,31 @@ public class xAnchor extends Module {
     @EventHandler
     private void onRender3D(Render3DEvent event) {
         if (renderPos == null) return;
-        event.renderer.box(
-            renderPos,
-            FILL_COLOR,
-            OUTLINE_COLOR,
-            ShapeMode.Both,
-            0
-        );
+        event.renderer.box(renderPos, FILL_COLOR, OUTLINE_COLOR, ShapeMode.Both, 0);
     }
 
     private BlockPos findPlacePos(BlockPos targetPos) {
+        BlockPos bestPos = null;
+        double bestDist = Double.MAX_VALUE;
+
         for (BlockPos pos : BlockPos.iterate(targetPos.add(-2, -1, -2), targetPos.add(2, 1, 2))) {
-            BlockState state = mc.world.getBlockState(pos);
-            BlockPos above = pos.up();
+            if (!mc.world.isAir(pos)) continue;
+            if (PlayerUtils.distanceTo(pos) > range.get()) continue;
 
-            if (!state.isSolid()) continue;                           
-            if (!mc.world.isAir(above)) continue;                   
-            if (PlayerUtils.distanceTo(above) > range.get()) continue;
+            BlockPos below = pos.down();
+            boolean hasSolidBelow = mc.world.getBlockState(below).isSolidBlock(mc.world, below);
 
-            return above.toImmutable(); 
+            if (!hasSolidBelow && !airPlace.get()) continue;
+
+            double dist = targetPos.getSquaredDistance(pos);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestPos = pos.toImmutable();
+            }
         }
-        return null;
+        return bestPos;
     }
 
-    // Busca un ancla ya colocada cerca del objetivo
     private BlockPos findAnchor(BlockPos targetPos) {
         for (BlockPos pos : BlockPos.iterate(targetPos.add(-2, -1, -2), targetPos.add(2, 2, 2))) {
             if (mc.world.getBlockState(pos).getBlock() == Blocks.RESPAWN_ANCHOR) {
@@ -154,21 +202,23 @@ public class xAnchor extends Module {
         return null;
     }
 
-    // Coloca el ancla interactuando con la cara superior del bloque de soporte
     private void placeAnchor(BlockPos pos) {
         var found = InvUtils.findInHotbar(Items.RESPAWN_ANCHOR);
         if (!found.found()) return;
         if (autoSwitch.get()) InvUtils.swap(found.slot(), false);
 
-        // Interactuamos con la cara superior del bloque debajo de pos
         BlockPos support = pos.down();
+        boolean hasSolid = mc.world.getBlockState(support).isSolidBlock(mc.world, support);
+
+        BlockPos interactPos = hasSolid ? support : pos;
+        Direction face = hasSolid ? Direction.UP : Direction.DOWN;
         Vec3d hitVec = new Vec3d(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
-        BlockHitResult hit = new BlockHitResult(hitVec, Direction.UP, support, false);
+        BlockHitResult hit = new BlockHitResult(hitVec, face, interactPos, false);
+
         mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hit);
         mc.player.swingHand(Hand.MAIN_HAND);
     }
 
-    // Carga el ancla con glowstone
     private void chargeAnchor(BlockPos pos) {
         var found = InvUtils.findInHotbar(Items.GLOWSTONE);
         if (!found.found()) return;
@@ -180,9 +230,7 @@ public class xAnchor extends Module {
         mc.player.swingHand(Hand.MAIN_HAND);
     }
 
-    // Explota el ancla — el jugador NO debe tener glowstone en mano
     private void explodeAnchor(BlockPos pos) {
-        // Si tiene glowstone en mano, cambiar a cualquier otro slot
         if (mc.player.getMainHandStack().getItem() == Items.GLOWSTONE) {
             for (int i = 0; i < 9; i++) {
                 if (mc.player.getInventory().getStack(i).getItem() != Items.GLOWSTONE) {
