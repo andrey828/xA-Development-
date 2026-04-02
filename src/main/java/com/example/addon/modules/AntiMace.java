@@ -155,7 +155,7 @@ public class AntiMace extends Module {
             case Predict     -> runPredict(bx, by, bz, nearest, vd, packets);
         }
 
-        lastTargetPos = nearest.getPos();
+        lastTargetPos = new Vec3d(nearest.getX(), nearest.getY(), nearest.getZ());
 
         sendPos(bx, by, bz, mc.player.isOnGround());
     }
@@ -210,7 +210,7 @@ public class AntiMace extends Module {
     private void runPredict(double bx, double by, double bz, PlayerEntity target, double vd, int packets) {
         Vec3d targetVel;
         if (lastTargetPos != null) {
-            targetVel = target.getPos().subtract(lastTargetPos);
+            targetVel = new Vec3d(target.getX(), target.getY(), target.getZ()).subtract(lastTargetPos);
         } else {
             targetVel = Vec3d.ZERO;
         }
