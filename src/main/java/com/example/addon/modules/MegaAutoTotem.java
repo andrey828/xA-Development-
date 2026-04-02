@@ -132,7 +132,7 @@ public class MegaAutoTotem extends Module {
         for (int hotbarSlot = 0; hotbarSlot < PlayerInventory.getHotbarSize(); hotbarSlot++) {
             if (!inv.getStack(hotbarSlot).isEmpty()) continue;
 
-            for (int slot = PlayerInventory.getHotbarSize(); slot < inv.main.size(); slot++) {
+            for (int slot = PlayerInventory.getHotbarSize(); slot < inv.size(); slot++) {
                 if (inv.getStack(slot).isOf(Items.TOTEM_OF_UNDYING)) {
                     mc.interactionManager.clickSlot(
                         mc.player.playerScreenHandler.syncId,
@@ -152,4 +152,4 @@ public class MegaAutoTotem extends Module {
         if (!enableFilter.get()) return false;
         return itemFilter.get().contains(item);
     }
-}
+            }
