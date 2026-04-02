@@ -5,116 +5,137 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.math.Vec3d;
 
-/**
- * AntiMace — Envía paquetes de movimiento vertical oscilante para
- * romper la mecánica de caída del xMace y el TP reach del xAura.
- *
- * El servidor calcula el daño del Mace según la distancia de caída acumulada.
- * Si tu posición reportada cambia continuamente arriba/abajo, esa distancia
- * se resetea o se vuelve inválida, anulando el golpe.
- * También interrumpe el hitbox predictivo del xAura.
- */
 public class AntiMace extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
+    private final SettingGroup sgMovement = settings.createGroup("Movement");
 
-    private final Setting<Double> bounceHeight = sgGeneral.add(new DoubleSetting.Builder()
-        .name("bounce-height")
-        .description("Cuántos bloques sube/baja por paquete. Bajo = más seguro vs kicks.")
-        .defaultValue(0.25)
-        .min(0.05)
-        .sliderMax(1.0)
+    private final Setting<Double> strafeDistance = sgMovement.add(new DoubleSetting.Builder()
+        .name("strafe-distance")
+        .description("Distancia de movimiento lateral/diagonal por paquete (bloques).")
+        .defaultValue(1.5)
+        .min(0.1)
+        .sliderMax(10.0)
         .build());
 
-    private final Setting<Integer> packetsPerTick = sgGeneral.add(new IntSetting.Builder()
+    private final Setting<Double> verticalDistance = sgMovement.add(new DoubleSetting.Builder()
+        .name("vertical-distance")
+        .description("Distancia vertical del bounce. Mínimo ~10.5 para invalidar el Mace.")
+        .defaultValue(11.0)
+        .min(10.1)
+        .sliderMax(30.0)
+        .build());
+
+    private final Setting<Integer> packetsPerTick = sgMovement.add(new IntSetting.Builder()
         .name("packets-per-tick")
-        .description("Cuántos paquetes de oscilación enviar por tick.")
-        .defaultValue(2)
+        .description("Paquetes de movimiento enviados por tick.")
+        .defaultValue(6)
         .min(1)
-        .sliderMax(8)
+        .sliderMax(16)
         .build());
 
-    private final Setting<Boolean> onlyWhenAttacked = sgGeneral.add(new BoolSetting.Builder()
-        .name("only-when-attacked")
-        .description("Solo activa la oscilación cuando hay un jugador cerca.")
-        .defaultValue(false)
+    private final Setting<Boolean> relativeToTarget = sgGeneral.add(new BoolSetting.Builder()
+        .name("relative-to-target")
+        .description("Las direcciones son relativas al jugador más cercano.")
+        .defaultValue(true)
         .build());
 
     private final Setting<Double> activationRange = sgGeneral.add(new DoubleSetting.Builder()
         .name("activation-range")
-        .description("Rango para detectar jugadores cercanos (solo-when-attacked).")
-        .defaultValue(20.0)
-        .min(1.0)
-        .sliderMax(100.0)
+        .description("Solo activa si hay un jugador dentro de este rango.")
+        .defaultValue(50.0)
+        .min(5.0)
+        .sliderMax(200.0)
         .build());
 
     private final Setting<Boolean> randomize = sgGeneral.add(new BoolSetting.Builder()
         .name("randomize")
-        .description("Añade variación aleatoria al bounce para evitar detección por patrón.")
+        .description("Aleatoriza el orden y magnitud de las direcciones cada tick.")
         .defaultValue(true)
         .build());
 
-    private boolean goingUp = true;
-    private double offset = 0.0;
+    private static final double[][] DIRECTIONS = {
+        { 1,  0,  0},
+        {-1,  0,  0},
+        { 0,  0,  1},
+        { 0,  0, -1},
+        { 1,  0,  1},
+        { 1,  0, -1},
+        {-1,  0,  1},
+        {-1,  0, -1},
+    };
+
+    private int dirIndex = 0;
 
     public AntiMace() {
-        super(AddonTemplate.CATEGORY, "AntiMace", "Oscila tu posición para anular xMace y xAura.");
+        super(AddonTemplate.CATEGORY, "xAntiMace", "Movimiento evasivo multidireccional + anti-Mace.");
     }
 
     @Override
     public void onActivate() {
-        goingUp = true;
-        offset = 0.0;
+        dirIndex = 0;
     }
 
     @Override
     public void onDeactivate() {
-        // Enviar un paquete final en la posición real para re-sincronizar
-        if (mc.player != null) {
-            sendPos(mc.player.getX(), mc.player.getY(), mc.player.getZ(), true);
-        }
+        if (mc.player == null) return;
+        sendPos(mc.player.getX(), mc.player.getY(), mc.player.getZ(), true);
     }
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
 
-        // Si only-when-attacked está activo, verificar si hay alguien cerca
-        if (onlyWhenAttacked.get()) {
-            boolean playerNearby = mc.world.getPlayers().stream()
-                .anyMatch(p -> p != mc.player && mc.player.distanceTo(p) <= activationRange.get());
-            if (!playerNearby) return;
+        PlayerEntity nearest = mc.world.getPlayers().stream()
+            .filter(p -> p != mc.player && mc.player.distanceTo(p) <= activationRange.get())
+            .min((a, b) -> Double.compare(mc.player.distanceTo(a), mc.player.distanceTo(b)))
+            .orElse(null);
+
+        if (nearest == null) return;
+
+        double bx = mc.player.getX();
+        double by = mc.player.getY();
+        double bz = mc.player.getZ();
+
+        double yaw;
+        if (relativeToTarget.get()) {
+            Vec3d diff = new Vec3d(nearest.getX() - bx, 0, nearest.getZ() - bz).normalize();
+            yaw = Math.atan2(diff.z, diff.x);
+        } else {
+            yaw = Math.toRadians(mc.player.getYaw());
         }
 
-        double baseX = mc.player.getX();
-        double baseY = mc.player.getY();
-        double baseZ = mc.player.getZ();
-        double step = bounceHeight.get();
-
-        for (int i = 0; i < packetsPerTick.get(); i++) {
-            // Variación aleatoria opcional
-            double variation = randomize.get() ? (Math.random() * 0.05) : 0.0;
-            double currentStep = step + variation;
-
-            if (goingUp) {
-                offset += currentStep;
-                if (offset >= step * 2) goingUp = false;
-            } else {
-                offset -= currentStep;
-                if (offset <= 0) {
-                    offset = 0;
-                    goingUp = true;
-                }
-            }
-
-            // onGround = false → el servidor no acumula distancia de caída real
-            sendPos(baseX, baseY + offset, baseZ, false);
+        double sd = strafeDistance.get();
+        double vd = verticalDistance.get();
+        if (randomize.get()) {
+            sd += (Math.random() - 0.5) * 0.5;
+            vd += Math.random() * 2.0;
         }
 
-        // Paquete final con la posición real para no desincronizarse visualmente
-        sendPos(baseX, baseY, baseZ, mc.player.isOnGround());
+        int packets = packetsPerTick.get();
+        int totalDirs = DIRECTIONS.length;
+
+        for (int i = 0; i < packets; i++) {
+            int idx = randomize.get()
+                ? (int)(Math.random() * totalDirs)
+                : (dirIndex++ % totalDirs);
+
+            double[] dir = DIRECTIONS[idx];
+            double rotX = dir[0] * Math.cos(yaw) - dir[2] * Math.sin(yaw);
+            double rotZ = dir[0] * Math.sin(yaw) + dir[2] * Math.cos(yaw);
+
+            double ox = rotX * sd;
+            double oz = rotZ * sd; //papoi
+
+            sendPos(bx + ox, by, bz + oz, true);
+            sendPos(bx + ox, by + vd, bz + oz, false);
+            sendPos(bx + ox, by, bz + oz, true);
+        }
+
+        sendPos(bx, by, bz, mc.player.isOnGround());
     }
 
     private void sendPos(double x, double y, double z, boolean onGround) {
