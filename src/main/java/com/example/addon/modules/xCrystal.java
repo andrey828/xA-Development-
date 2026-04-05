@@ -119,7 +119,7 @@ public class xCrystal extends Module {
 
     public xCrystal() {
         super(AddonTemplate.CATEGORY, "xCrystal",
-            "Crystal Aura con hub, damage calc, anti-suicide y predicción — 1.21.x");
+            "Crystal Aura con hub, damage calc, anti-suicide y predicción — ");
     }
 
     @Override public void onActivate()   { placeTimer = 0; explodeTimer = 0; prevSlot = -1; renderPos = null; }
