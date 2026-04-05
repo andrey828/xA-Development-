@@ -116,7 +116,7 @@ public class xAnchor extends Module {
 
     public xAnchor() {
         super(AddonTemplate.CATEGORY, "xAnchor",
-            "Anchor Aura con hub, damage calc, predicción y rotación de posición — 1.21.x");
+            "Anchor Aura con hub, damage calc, predicción y rotación de posición ");
     }
 
     @Override public void onActivate() {
