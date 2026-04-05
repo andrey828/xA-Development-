@@ -202,17 +202,10 @@ public class xAnchor extends Module {
                 }
             }
         } else {
-            // ── No hay ancla → colocar una nueva ──────────────────────────────
+            // ── No hay ancla → buscar lugar y colocar ─────────────────────────
             if (placeTimer <= 0) {
-                List<PlaceData> candidates = findPlaceCandidates(target, predictedPos);
-                if (candidates.isEmpty() && predictFallback.get() && enablePrediction.get())
-                    candidates = findPlaceCandidates(target, target.getBlockPos());
-
-                if (!candidates.isEmpty()) {
-                    if (smartPosition.get())
-                        candidates.sort(Comparator.comparingDouble(PlaceData::score).reversed());
-
-                    PlaceData best = candidates.get(0);
+                PlaceData best = findBestPlacePos(target, predictedPos);
+                if (best != null) {
                     renderPos = best.pos;
                     placeAnchor(best.pos);
                     placeTimer = placeDelay.get();
@@ -225,6 +218,43 @@ public class xAnchor extends Module {
         }
     }
 
+    // ─── BUSCAR MEJOR POSICIÓN CON FALLBACKS PROGRESIVOS ─────────────────────
+    /**
+     * Orden de intento:
+     * 1. Posición predicha del target, radio normal (±2)
+     * 2. Posición actual del target, radio normal (±2)          [si prediction fallback ON]
+     * 3. Posición actual del target, radio ampliado (±3)        [último recurso target]
+     * 4. Posición del propio jugador, radio normal (±2)         [último recurso player]
+     *
+     * En cada paso se elige el candidato con mayor score (daño target − daño propio × 0.5).
+     */
+    private PlaceData findBestPlacePos(PlayerEntity target, BlockPos predictedPos) {
+        // Intento 1: posición predicha
+        List<PlaceData> candidates = findPlaceCandidates(target, predictedPos, 2);
+        if (!candidates.isEmpty()) return best(candidates);
+
+        if (predictFallback.get() && enablePrediction.get()) {
+            // Intento 2: posición actual, radio normal
+            candidates = findPlaceCandidates(target, target.getBlockPos(), 2);
+            if (!candidates.isEmpty()) return best(candidates);
+        }
+
+        // Intento 3: posición actual, radio ampliado (+3)
+        candidates = findPlaceCandidates(target, target.getBlockPos(), 3);
+        if (!candidates.isEmpty()) return best(candidates);
+
+        // Intento 4: alrededor del propio jugador como último recurso
+        candidates = findPlaceCandidates(target, mc.player.getBlockPos(), 2);
+        if (!candidates.isEmpty()) return best(candidates);
+
+        return null; // no hay ningún lugar válido
+    }
+
+    private PlaceData best(List<PlaceData> list) {
+        if (!smartPosition.get()) return list.get(0);
+        return list.stream().max(Comparator.comparingDouble(PlaceData::score)).orElse(null);
+    }
+
     // ─── RENDER 3D ────────────────────────────────────────────────────────────
     @EventHandler
     private void onRender3D(Render3DEvent event) {
@@ -232,11 +262,7 @@ public class xAnchor extends Module {
         event.renderer.box(renderPos, SIDE_COLOR, OUTLINE_COLOR, ShapeMode.Both, 0);
     }
 
-    // ─── CÁLCULO DE DAÑO (fórmula de explosión de Minecraft) ─────────────────
-    /**
-     * Calcula el daño estimado de una explosión de Respawn Anchor (power = 5).
-     * Usa getX/Y/Z en lugar de getPos() para compatibilidad total con Fabric Loom.
-     */
+    // ─── CÁLCULO DE DAÑO ──────────────────────────────────────────────────────
     private float calcDamage(LivingEntity entity, Vec3d explosionPos) {
         Vec3d entityPos = new Vec3d(
             entity.getX(),
@@ -244,13 +270,12 @@ public class xAnchor extends Module {
             entity.getZ()
         );
         double dist = entityPos.distanceTo(explosionPos);
-        double radius = ANCHOR_POWER * 2.0; // radio = power × 2
+        double radius = ANCHOR_POWER * 2.0;
         if (dist > radius) return 0f;
 
         double exposure = 1.0 - (dist / radius);
         float damage = (float) ((exposure * exposure + exposure) / 2.0 * 7.0 * radius + 1.0);
 
-        // Reducción simplificada por armadura
         int armor = entity.getArmor();
         damage *= (1.0f - Math.min(20.0f, armor) / 25.0f);
         return Math.max(0f, damage);
@@ -261,10 +286,16 @@ public class xAnchor extends Module {
         double score() { return targetDmg - selfDmg * 0.5; }
     }
 
-    private List<PlaceData> findPlaceCandidates(PlayerEntity target, BlockPos origin) {
+    /**
+     * @param radius Radio de búsqueda alrededor de origin (normalmente 2, fallback 3).
+     */
+    private List<PlaceData> findPlaceCandidates(PlayerEntity target, BlockPos origin, int radius) {
         List<PlaceData> list = new ArrayList<>();
 
-        for (BlockPos pos : BlockPos.iterate(origin.add(-2, -1, -2), origin.add(2, 1, 2))) {
+        for (BlockPos pos : BlockPos.iterate(
+                origin.add(-radius, -1, -radius),
+                origin.add( radius,  1,  radius))) {
+
             if (!mc.world.isAir(pos)) continue;
             if (PlayerUtils.distanceTo(pos) > range.get()) continue;
 
@@ -276,7 +307,6 @@ public class xAnchor extends Module {
             float tDmg = calcDamage(target,    anchorCenter);
             float sDmg = calcDamage(mc.player, anchorCenter);
 
-            // Solo candidatos rentables
             if (tDmg < minTargetDamage.get()) continue;
             if (sDmg > maxSelfDamage.get())   continue;
             if (antiSuicide.get()) {
@@ -358,15 +388,9 @@ public class xAnchor extends Module {
     }
 
     // ─── EXPLOTAR ANCLA ───────────────────────────────────────────────────────
-    /**
-     * Para explotar el ancla el jugador NO debe tener Glowstone en mano.
-     * Si tiene Glowstone activo, busca otro slot en el hotbar para cambiar.
-     */
     private void explodeAnchor(BlockPos pos) {
-        // Si la mano tiene Glowstone cambiar a cualquier otro slot
         if (mc.player.getMainHandStack().getItem() == Items.GLOWSTONE) {
             int aSlot = anchorSlot.get() - 1;
-            // Preferir el slot de ancla (ya vacío o con ancla, no glowstone)
             if (mc.player.getInventory().getStack(aSlot).getItem() != Items.GLOWSTONE) {
                 InvUtils.swap(aSlot, false);
             } else {
