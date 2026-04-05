@@ -6,7 +6,6 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.entity.DamageUtils;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
@@ -14,6 +13,7 @@ import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Blocks;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Items;
@@ -89,22 +89,22 @@ public class xCrystal extends Module {
         .name("Auto Switch").description("Cambia al slot correcto antes de usar el ítem.")
         .defaultValue(true).build());
 
-    // ── Damage ────────────────────────────────────────────────────────────────
-    private final Setting<Float> minTargetDamage = sgDamage.add(new FloatSetting.Builder()
+    // ── Damage — usa DoubleSetting (Meteor no tiene FloatSetting) ─────────────
+    private final Setting<Double> minTargetDamage = sgDamage.add(new DoubleSetting.Builder()
         .name("Min Target Damage").description("Daño mínimo al objetivo para colocar/explotar.")
-        .defaultValue(4f).min(0).sliderMax(36).build());
+        .defaultValue(4.0).min(0).sliderMax(36).build());
 
-    private final Setting<Float> maxSelfDamage = sgDamage.add(new FloatSetting.Builder()
+    private final Setting<Double> maxSelfDamage = sgDamage.add(new DoubleSetting.Builder()
         .name("Max Self Damage").description("Daño propio máximo permitido.")
-        .defaultValue(8f).min(0).sliderMax(36).build());
+        .defaultValue(8.0).min(0).sliderMax(36).build());
 
     private final Setting<Boolean> antiSuicide = sgDamage.add(new BoolSetting.Builder()
         .name("Anti Suicide").description("No explota si te dejaría con poca vida.")
         .defaultValue(true).build());
 
-    private final Setting<Float> minSelfHealth = sgDamage.add(new FloatSetting.Builder()
+    private final Setting<Double> minSelfHealth = sgDamage.add(new DoubleSetting.Builder()
         .name("Min Self Health").description("Vida mínima para permitir una explosión.")
-        .defaultValue(6f).min(0).sliderMax(20).build());
+        .defaultValue(6.0).min(0).sliderMax(20).build());
 
     private final Setting<Boolean> smartPosition = sgDamage.add(new BoolSetting.Builder()
         .name("Smart Position")
@@ -149,12 +149,11 @@ public class xCrystal extends Module {
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
 
-        // 1. Gestionar hotbar hub cada tick
         if (enableHub.get()) manageHotbar();
 
         PlayerEntity target = TargetUtils.getPlayerTarget(targetRange.get(), SortPriority.LowestHealth);
 
-        // 2. Explotar cristal con mejor score de daño
+        // Explotar mejor cristal
         if (explodeTimer <= 0) {
             if (explodeBestCrystal(target)) explodeTimer = explodeDelay.get();
         } else {
@@ -163,25 +162,40 @@ public class xCrystal extends Module {
 
         if (target == null) { renderPos = null; return; }
 
-        // 3. Colocar cristal/obsidiana
+        // Colocar cristal / obsidiana
         if (placeTimer <= 0) {
             BlockPos predictedPos = getPredictedBlockPos(target);
             int placed = placeBest(target, predictedPos);
-
             if (placed == 0 && predictFallback.get() && enablePrediction.get())
                 placed = placeBest(target, target.getBlockPos());
-
             if (placed > 0) placeTimer = placeDelay.get();
         } else {
             placeTimer--;
         }
     }
 
-    // ─── EXPLOTAR MEJOR CRISTAL ───────────────────────────────────────────────
+    // ─── CÁLCULO DE DAÑO (propio, sin depender de DamageUtils de Meteor) ──────
     /**
-     * Selecciona el cristal con mayor score (daño objetivo - daño propio × 0.5),
-     * respetando los filtros de anti-suicide y daño mínimo.
+     * Fórmula de explosión de Minecraft simplificada.
+     * Radius = 6 para End Crystal. No aplica armadura (conservador = safer).
+     * Para incluir armadura habría que acceder a mc.world que puede ser null en tests.
      */
+    private float calcDamage(LivingEntity entity, Vec3d explosionPos) {
+        // Usamos getX/Y/Z para no depender del mapeo de getPos()
+        Vec3d entityPos = new Vec3d(entity.getX(), entity.getY() + entity.getHeight() / 2.0, entity.getZ());
+        double dist = entityPos.distanceTo(explosionPos);
+        double radius = 6.0; // radio de explosión del cristal
+        if (dist > radius) return 0f;
+        double exposure = 1.0 - (dist / radius);
+        // Fórmula vanilla: damage = (exposure^2 + exposure) / 2 * 7 * (radius*2) + 1
+        float damage = (float) ((exposure * exposure + exposure) / 2.0 * 7.0 * (radius * 2.0) + 1.0);
+        // Reducción por armadura simplificada (20 armor = ~20% reducción aprox)
+        int armor = entity.getArmor();
+        damage *= (1.0f - Math.min(20.0f, armor) / 25.0f);
+        return Math.max(0f, damage);
+    }
+
+    // ─── EXPLOTAR MEJOR CRISTAL ───────────────────────────────────────────────
     private boolean explodeBestCrystal(PlayerEntity target) {
         EndCrystalEntity best = null;
         float bestScore = Float.NEGATIVE_INFINITY;
@@ -195,11 +209,11 @@ public class xCrystal extends Module {
             if (onlyExplodeNear.get() && target != null
                 && crystal.distanceTo(target) > placeRange.get() + 2) continue;
 
-            Vec3d cPos = crystal.getPos();
+            // Posición del cristal sin getPos()
+            Vec3d cPos = new Vec3d(crystal.getX(), crystal.getY(), crystal.getZ());
 
-            float tDmg = (target != null)
-                ? DamageUtils.crystalDamage(target,    cPos, null, mc.world) : 0f;
-            float sDmg = DamageUtils.crystalDamage(mc.player, cPos, null, mc.world);
+            float tDmg = (target != null) ? calcDamage(target, cPos) : 0f;
+            float sDmg = calcDamage(mc.player, cPos);
 
             if (tDmg < minTargetDamage.get()) continue;
             if (sDmg > maxSelfDamage.get())   continue;
@@ -229,7 +243,6 @@ public class xCrystal extends Module {
         int placed = 0;
         for (PlaceData d : candidates) {
             if (placed >= multiPlace.get()) break;
-
             var block = mc.world.getBlockState(d.pos).getBlock();
             boolean needsObs = block != Blocks.OBSIDIAN && block != Blocks.BEDROCK;
 
@@ -259,13 +272,13 @@ public class xCrystal extends Module {
             boolean isBase = block == Blocks.OBSIDIAN || block == Blocks.BEDROCK;
             boolean isAir  = block == Blocks.AIR;
 
-            // Posición para cristal
+            // Posición válida para cristal
             if (isBase && mc.world.isAir(pos.up())) {
                 if (!mc.world.getEntitiesByClass(EndCrystalEntity.class, new Box(pos.up()), e -> true).isEmpty()) continue;
 
                 Vec3d cp = Vec3d.ofCenter(pos.up());
-                float tDmg = DamageUtils.crystalDamage(target,    cp, null, mc.world);
-                float sDmg = DamageUtils.crystalDamage(mc.player, cp, null, mc.world);
+                float tDmg = calcDamage(target, cp);
+                float sDmg = calcDamage(mc.player, cp);
 
                 if (tDmg < minTargetDamage.get()) continue;
                 if (sDmg > maxSelfDamage.get())   continue;
@@ -276,15 +289,15 @@ public class xCrystal extends Module {
                 list.add(new PlaceData(pos.toImmutable(), tDmg, sDmg));
             }
 
-            // Posición para obsidiana
+            // Posición válida para obsidiana
             if (placeObsidian.get() && isAir) {
                 BlockPos below = pos.down();
                 if (!mc.world.getBlockState(below).isSolidBlock(mc.world, below)) continue;
                 if (!mc.world.isAir(pos.up())) continue;
 
                 Vec3d cp = Vec3d.ofCenter(pos.up());
-                float tDmg = DamageUtils.crystalDamage(target,    cp, null, mc.world);
-                float sDmg = DamageUtils.crystalDamage(mc.player, cp, null, mc.world);
+                float tDmg = calcDamage(target, cp);
+                float sDmg = calcDamage(mc.player, cp);
 
                 if (tDmg >= minTargetDamage.get() && sDmg <= maxSelfDamage.get())
                     list.add(new PlaceData(pos.toImmutable(), tDmg, sDmg));
@@ -294,10 +307,6 @@ public class xCrystal extends Module {
     }
 
     // ─── HOTBAR HUB ───────────────────────────────────────────────────────────
-    /**
-     * Mantiene End Crystals en crystalSlot y Obsidiana en obsidianSlot.
-     * Solo mueve si el slot destino no tiene ya el ítem correcto.
-     */
     private void manageHotbar() {
         if (mc.player == null) return;
         int cSlot = crystalSlot.get() - 1;
@@ -354,7 +363,8 @@ public class xCrystal extends Module {
         }
 
         Vec3d hit = new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
-        mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, new BlockHitResult(hit, Direction.UP, pos.down(), false));
+        mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND,
+            new BlockHitResult(hit, Direction.UP, pos.down(), false));
         mc.player.swingHand(Hand.MAIN_HAND);
         if (autoSwitch.get() && prevSlot != -1) { InvUtils.swap(prevSlot, false); prevSlot = -1; }
         return true;
@@ -383,7 +393,8 @@ public class xCrystal extends Module {
         }
 
         Vec3d hit = new Vec3d(pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5);
-        mc.interactionManager.interactBlock(mc.player, hand, new BlockHitResult(hit, Direction.UP, pos, false));
+        mc.interactionManager.interactBlock(mc.player, hand,
+            new BlockHitResult(hit, Direction.UP, pos, false));
         mc.player.swingHand(hand);
         if (autoSwitch.get() && prevSlot != -1) { InvUtils.swap(prevSlot, false); prevSlot = -1; }
         return true;
