@@ -29,11 +29,9 @@ import java.util.Set;
 
 public class xCrystal extends Module {
 
-    // ─── Colores del render (celeste oscuro) ──────────────────────────────────
     private static final Color SIDE_COLOR = new Color(0, 120, 160, 55);
     private static final Color LINE_COLOR = new Color(0, 200, 230, 220);
 
-    // ─── Grupos de settings ───────────────────────────────────────────────────
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgHotbar  = settings.createGroup("Hotbar Hub");
     private final SettingGroup sgDamage  = settings.createGroup("Damage");
@@ -54,91 +52,69 @@ public class xCrystal extends Module {
         .defaultValue(5.0).min(1).sliderMax(8).build());
 
     private final Setting<Integer> placeDelay = sgGeneral.add(new IntSetting.Builder()
-        .name("Place Delay").description("Ticks entre colocaciones (0 = máximo).")
-        .defaultValue(0).min(0).sliderMax(20).build());
+        .name("Place Delay").defaultValue(0).min(0).sliderMax(20).build());
 
     private final Setting<Integer> explodeDelay = sgGeneral.add(new IntSetting.Builder()
-        .name("Explode Delay").description("Ticks entre explosiones (0 = máximo).")
-        .defaultValue(0).min(0).sliderMax(10).build());
+        .name("Explode Delay").defaultValue(0).min(0).sliderMax(10).build());
 
     private final Setting<Integer> multiPlace = sgGeneral.add(new IntSetting.Builder()
-        .name("Multi Place").description("Cristales/obsidiana a colocar por tick.")
-        .defaultValue(1).min(1).sliderMax(5).build());
+        .name("Multi Place").defaultValue(1).min(1).sliderMax(5).build());
 
     private final Setting<Boolean> placeObsidian = sgGeneral.add(new BoolSetting.Builder()
-        .name("Place Obsidian").description("Coloca obsidiana automáticamente (solo si no hay otra opción).")
+        .name("Place Obsidian").description("Coloca obsidiana solo cuando no hay base disponible.")
         .defaultValue(true).build());
 
     private final Setting<Boolean> onlyExplodeNear = sgGeneral.add(new BoolSetting.Builder()
-        .name("Only Explode Near Target").description("Solo explota cristales cerca del objetivo.")
-        .defaultValue(true).build());
+        .name("Only Explode Near Target").defaultValue(true).build());
 
     // ── Hotbar Hub ────────────────────────────────────────────────────────────
     private final Setting<Boolean> enableHub = sgHotbar.add(new BoolSetting.Builder()
-        .name("Enable Hub")
-        .description("Mueve End Crystals y Obsidiana a slots fijos del hotbar automáticamente.")
-        .defaultValue(true).build());
+        .name("Enable Hub").defaultValue(true).build());
 
     private final Setting<Integer> crystalSlot = sgHotbar.add(new IntSetting.Builder()
-        .name("Crystal Slot").description("Slot del hotbar para End Crystals (1-9).")
-        .defaultValue(1).min(1).sliderMax(9).build());
+        .name("Crystal Slot").defaultValue(1).min(1).sliderMax(9).build());
 
     private final Setting<Integer> obsidianSlot = sgHotbar.add(new IntSetting.Builder()
-        .name("Obsidian Slot").description("Slot del hotbar para Obsidiana (1-9).")
-        .defaultValue(2).min(1).sliderMax(9).build());
+        .name("Obsidian Slot").defaultValue(2).min(1).sliderMax(9).build());
 
     private final Setting<Boolean> autoSwitch = sgHotbar.add(new BoolSetting.Builder()
-        .name("Auto Switch").description("Cambia al slot correcto antes de usar el ítem.")
-        .defaultValue(true).build());
+        .name("Auto Switch").defaultValue(true).build());
 
     // ── Damage ────────────────────────────────────────────────────────────────
     private final Setting<Double> minTargetDamage = sgDamage.add(new DoubleSetting.Builder()
-        .name("Min Target Damage").description("Daño mínimo al objetivo para colocar/explotar.")
-        .defaultValue(4.0).min(0).sliderMax(36).build());
+        .name("Min Target Damage").defaultValue(4.0).min(0).sliderMax(36).build());
 
     private final Setting<Double> maxSelfDamage = sgDamage.add(new DoubleSetting.Builder()
-        .name("Max Self Damage").description("Daño propio máximo permitido.")
-        .defaultValue(8.0).min(0).sliderMax(36).build());
+        .name("Max Self Damage").defaultValue(8.0).min(0).sliderMax(36).build());
 
     private final Setting<Boolean> antiSuicide = sgDamage.add(new BoolSetting.Builder()
-        .name("Anti Suicide").description("No explota si te dejaría con poca vida.")
-        .defaultValue(true).build());
+        .name("Anti Suicide").defaultValue(true).build());
 
     private final Setting<Double> minSelfHealth = sgDamage.add(new DoubleSetting.Builder()
-        .name("Min Self Health").description("Vida mínima para permitir una explosión.")
-        .defaultValue(6.0).min(0).sliderMax(20).build());
+        .name("Min Self Health").defaultValue(6.0).min(0).sliderMax(20).build());
 
     private final Setting<Boolean> smartPosition = sgDamage.add(new BoolSetting.Builder()
-        .name("Smart Position")
-        .description("Elige la posición que maximiza daño al objetivo y minimiza daño propio.")
-        .defaultValue(true).build());
+        .name("Smart Position").defaultValue(true).build());
 
     // ── Predicción ────────────────────────────────────────────────────────────
     private final Setting<Boolean> enablePrediction = sgPredict.add(new BoolSetting.Builder()
-        .name("Enable Prediction").description("Predice la posición futura del objetivo.")
-        .defaultValue(true).build());
+        .name("Enable Prediction").defaultValue(true).build());
 
     private final Setting<Integer> predictTicks = sgPredict.add(new IntSetting.Builder()
-        .name("Predict Ticks").description("Ticks adelante a predecir.")
-        .defaultValue(3).min(1).sliderMax(10).build());
+        .name("Predict Ticks").defaultValue(3).min(1).sliderMax(10).build());
 
     private final Setting<Boolean> predictFallback = sgPredict.add(new BoolSetting.Builder()
-        .name("Fallback to Current Pos")
-        .description("Si la posición predicha no tiene lugares, usa la posición actual.")
-        .defaultValue(true).build());
+        .name("Fallback to Current Pos").defaultValue(true).build());
 
     // ── Render ────────────────────────────────────────────────────────────────
     private final Setting<Boolean> renderPlace = sgRender.add(new BoolSetting.Builder()
-        .name("Render Place Pos").description("Pinta en celeste oscuro el bloque de colocación.")
-        .defaultValue(true).build());
+        .name("Render Place Pos").defaultValue(true).build());
 
     // ─── Estado interno ───────────────────────────────────────────────────────
     private int placeTimer   = 0;
     private int explodeTimer = 0;
     private int prevSlot     = -1;
     private BlockPos renderPos = null;
-
-    // IDs de cristales atacados en el tick actual — evita atacar el mismo dos veces
     private final Set<Integer> attackedThisTick = new HashSet<>();
 
     public xCrystal() {
@@ -154,14 +130,16 @@ public class xCrystal extends Module {
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null || mc.world == null) return;
 
-        // Limpiamos IDs atacados del tick anterior al inicio de cada tick
         attackedThisTick.clear();
 
         if (enableHub.get()) manageHotbar();
 
-        PlayerEntity target = TargetUtils.getPlayerTarget(targetRange.get(), SortPriority.LowestHealth);
+        // ── Detección de target mejorada: closest en rango, no solo lowestHealth ──
+        // Buscamos primero el más cercano dentro de targetRange que sea visible,
+        // si no hay ninguno visible usamos LowestHealth como fallback.
+        PlayerEntity target = getClosestTarget();
 
-        // Explotar mejor cristal
+        // Explotar cristales primero (no depende del target)
         if (explodeTimer <= 0) {
             if (explodeBestCrystal(target)) explodeTimer = explodeDelay.get();
         } else {
@@ -182,6 +160,40 @@ public class xCrystal extends Module {
         }
     }
 
+    // ─── TARGET: prioriza el más cercano con línea de visión ──────────────────
+    // Si ninguno tiene LOS, coge el más cercano igualmente.
+    // Usa TargetUtils solo como fallback final para no romper la estructura.
+    private PlayerEntity getClosestTarget() {
+        if (mc.world == null || mc.player == null) return null;
+
+        PlayerEntity best = null;
+        double bestDist = Double.MAX_VALUE;
+        PlayerEntity bestNoLos = null;
+        double bestDistNoLos = Double.MAX_VALUE;
+
+        for (PlayerEntity p : mc.world.getPlayers()) {
+            if (p == mc.player) continue;
+            if (p.isDead() || p.getHealth() <= 0) continue;
+            double dist = mc.player.distanceTo(p);
+            if (dist > targetRange.get()) continue;
+
+            // Línea de visión: usamos isConnectedThroughBlock indirectamente
+            // comprobando si el servidor devuelve al jugador en el bounding box expand
+            boolean hasLos = mc.player.canSee(p);
+
+            if (hasLos) {
+                if (dist < bestDist) { bestDist = dist; best = p; }
+            } else {
+                if (dist < bestDistNoLos) { bestDistNoLos = dist; bestNoLos = p; }
+            }
+        }
+
+        if (best != null) return best;
+        if (bestNoLos != null) return bestNoLos;
+        // Último recurso: API de Meteor
+        return TargetUtils.getPlayerTarget(targetRange.get(), SortPriority.LowestHealth);
+    }
+
     // ─── CÁLCULO DE DAÑO ──────────────────────────────────────────────────────
     private float calcDamage(LivingEntity entity, Vec3d explosionPos) {
         Vec3d entityPos = new Vec3d(entity.getX(), entity.getY() + entity.getHeight() / 2.0, entity.getZ());
@@ -190,14 +202,11 @@ public class xCrystal extends Module {
         if (dist > radius) return 0f;
         double exposure = 1.0 - (dist / radius);
         float damage = (float) ((exposure * exposure + exposure) / 2.0 * 7.0 * (radius * 2.0) + 1.0);
-        int armor = entity.getArmor();
-        damage *= (1.0f - Math.min(20.0f, armor) / 25.0f);
+        damage *= (1.0f - Math.min(20.0f, entity.getArmor()) / 25.0f);
         return Math.max(0f, damage);
     }
 
     // ─── EXPLOTAR MEJOR CRISTAL ───────────────────────────────────────────────
-    // OPTIMIZACIÓN: solo se envía attackEntity una vez por cristal por tick (attackedThisTick).
-    // El swing solo se hace si realmente se atacó algo, reduciendo paquetes inútiles.
     private boolean explodeBestCrystal(PlayerEntity target) {
         EndCrystalEntity best = null;
         float bestScore = Float.NEGATIVE_INFINITY;
@@ -208,13 +217,11 @@ public class xCrystal extends Module {
                 e -> true)) {
 
             if (mc.player.distanceTo(crystal) > explodeRange.get()) continue;
-            // Saltar cristales ya atacados este tick
             if (attackedThisTick.contains(crystal.getId())) continue;
             if (onlyExplodeNear.get() && target != null
                 && crystal.distanceTo(target) > placeRange.get() + 2) continue;
 
             Vec3d cPos = new Vec3d(crystal.getX(), crystal.getY(), crystal.getZ());
-
             float tDmg = (target != null) ? calcDamage(target, cPos) : 0f;
             float sDmg = calcDamage(mc.player, cPos);
 
@@ -230,11 +237,9 @@ public class xCrystal extends Module {
         }
 
         if (best == null) return false;
-
-        // Registrar antes de atacar para no duplicar en multiPlace o llamadas extra
         attackedThisTick.add(best.getId());
         mc.interactionManager.attackEntity(mc.player, best);
-        mc.player.swingHand(Hand.MAIN_HAND); // Un solo swing solo cuando hay ataque real
+        mc.player.swingHand(Hand.MAIN_HAND);
         return true;
     }
 
@@ -253,7 +258,6 @@ public class xCrystal extends Module {
             boolean needsObs = block != Blocks.OBSIDIAN && block != Blocks.BEDROCK;
 
             if (needsObs && d.isObsCandidate() && placeObsidian.get()) {
-                // Solo obsidiana si el candidato fue marcado explícitamente como fallback
                 renderPos = d.pos;
                 if (placeObsidianAt(d.pos)) placed++;
             } else if (!needsObs) {
@@ -264,9 +268,10 @@ public class xCrystal extends Module {
         return placed;
     }
 
-    // ─── CANDIDATOS DE COLOCACIÓN ─────────────────────────────────────────────
-    // CAMBIO PRINCIPAL: primero recoge candidatos de cristal (base ya existe).
-    // Solo si no hay ninguno, añade candidatos de obsidiana como fallback.
+    // ─── CANDIDATOS ───────────────────────────────────────────────────────────
+    // Primero busca posiciones donde YA hay base (obs/bedrock) → solo pone cristal.
+    // Solo si no hay ninguna base disponible, busca dónde colocar obsidiana.
+    // Además limita los candidatos de obsidiana a 1 por tick para no spamear.
     private record PlaceData(BlockPos pos, float targetDmg, float selfDmg, boolean isObsCandidate) {
         double score() { return targetDmg - selfDmg * 0.5; }
     }
@@ -282,12 +287,13 @@ public class xCrystal extends Module {
             boolean isBase = block == Blocks.OBSIDIAN || block == Blocks.BEDROCK;
             boolean isAir  = block == Blocks.AIR;
 
-            // Posición válida para cristal (base ya colocada)
+            // ── Posición con base ya existente → candidato de cristal ──────────
             if (isBase && mc.world.isAir(pos.up())) {
-                if (!mc.world.getEntitiesByClass(EndCrystalEntity.class, new Box(pos.up()), e -> true).isEmpty()) continue;
+                if (!mc.world.getEntitiesByClass(EndCrystalEntity.class,
+                        new Box(pos.up()), e -> true).isEmpty()) continue;
 
                 Vec3d cp = Vec3d.ofCenter(pos.up());
-                float tDmg = calcDamage(target, cp);
+                float tDmg = calcDamage(target,    cp);
                 float sDmg = calcDamage(mc.player, cp);
 
                 if (tDmg < minTargetDamage.get()) continue;
@@ -299,14 +305,15 @@ public class xCrystal extends Module {
                 crystalCandidates.add(new PlaceData(pos.toImmutable(), tDmg, sDmg, false));
             }
 
-            // Posición válida para obsidiana — solo se evalúa, se usará como fallback
-            if (placeObsidian.get() && isAir) {
+            // ── Posición de aire → candidato de obsidiana (fallback) ───────────
+            if (placeObsidian.get() && isAir && obsCandidates.isEmpty()) {
+                // obsCandidates.isEmpty() → solo guardamos 1 para no spamear obsi
                 BlockPos below = pos.down();
                 if (!mc.world.getBlockState(below).isSolidBlock(mc.world, below)) continue;
                 if (!mc.world.isAir(pos.up())) continue;
 
                 Vec3d cp = Vec3d.ofCenter(pos.up());
-                float tDmg = calcDamage(target, cp);
+                float tDmg = calcDamage(target,    cp);
                 float sDmg = calcDamage(mc.player, cp);
 
                 if (tDmg >= minTargetDamage.get() && sDmg <= maxSelfDamage.get())
@@ -314,7 +321,7 @@ public class xCrystal extends Module {
             }
         }
 
-        // Devuelve cristales primero; obsidiana SOLO si no hay ningún lugar de cristal disponible
+        // Devolver cristales si hay; obsidiana solo si NO hay ningún cristal posible
         if (!crystalCandidates.isEmpty()) return crystalCandidates;
         return obsCandidates;
     }
