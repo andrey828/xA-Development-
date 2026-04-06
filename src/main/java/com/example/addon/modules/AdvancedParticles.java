@@ -40,7 +40,7 @@ public class AdvancedParticles extends Module {
         .build());
 
     public AdvancedParticles() {
-        super(AddonTemplate.VISUALS, "xPartucules", "Control avanzado y visuales de partículas.");
+        super(AddonTemplate.VISUALS, "xParticles ", "Control avanzado y visuales de partículas.");
     }
 
     private double ticks = 0;
