@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "xa-addon", 
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "xAddon",
   "description": "Addon para Meteor Client 1.21.4-1.21.11",
   "authors": [
