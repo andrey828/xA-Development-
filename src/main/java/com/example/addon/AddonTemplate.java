@@ -32,6 +32,8 @@ public class AddonTemplate extends MeteorAddon {
         m.add(new xCrystal());
         m.add(new xAnchor());
         m.add(new AdvancedParticles());
+        m.add(new Aimbot());
+        m.add(new TeleportToPlayer());
     }
     
 
