@@ -17,7 +17,6 @@ import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.network.packet.c2s.play.VehicleMoveC2SPacket;
 import net.minecraft.util.math.Vec3d;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -82,15 +81,12 @@ public class UltraMace extends Module {
             .build());
 
     private final List<Setting<Integer>> hitHeights = new ArrayList<>();
-
     private LivingEntity targetPlayer;
     private boolean attackBool;
 
     public UltraMace() {
         super(AddonTemplate.CATEGORY, "xMace", "Hace Tu Mazo Mas Fuerte Para Que Rompas Papois");
-
         int[] defaults = {23, 40, 40, 50, 60, 70, 80, 100};
-
         for (int i = 1; i <= 50; i++) {
             int finalI = i;
             int def = (i <= defaults.length) ? defaults[i - 1] : 50 + (i * 10);
@@ -116,20 +112,16 @@ public class UltraMace extends Module {
     @EventHandler
     private void onSendPacket(PacketEvent.Send event) {
         if (mc.player == null || mc.getNetworkHandler() == null || attackBool) return;
-
         if (event.packet instanceof PlayerInteractEntityC2SPacket packet) {
             IPlayerInteractEntityC2SPacket accessor = (IPlayerInteractEntityC2SPacket) packet;
             if (!String.valueOf(accessor.meteor$getType()).contains("ATTACK")) return;
-
             Entity entity = accessor.meteor$getEntity();
             if (!(entity instanceof LivingEntity targetEntity)) return;
             if (targetEntity instanceof PlayerEntity p && Friends.get().isFriend(p)) return;
             if (targetEntity == mc.player) return;
-
             event.cancel();
             attackBool = true;
             targetPlayer = targetEntity;
-
             int maceSlot = -1;
             if (autoSwitch.get()) {
                 for (int i = 0; i < 9; i++) {
@@ -140,9 +132,7 @@ public class UltraMace extends Module {
                 }
                 if (maceSlot != -1) InvUtils.swap(maceSlot, false);
             }
-
             List<Integer> hits = getActiveHitList();
-
             if (alwaysTF.get()) {
                 for (int i = 0; i < hitAmount.get(); i++) {
                     for (int height : hits) {
@@ -156,9 +146,7 @@ public class UltraMace extends Module {
                     sendAttack(targetEntity);
                 }
             }
-
             if (autoSwitch.get() && maceSlot != -1) InvUtils.swap(maceSlot, false);
-
             attackBool = false;
         }
     }
@@ -167,13 +155,13 @@ public class UltraMace extends Module {
         if (packetDisable.get() && (enemyPlayer.isBlocking() || enemyPlayer.isUsingItem() || enemyPlayer.isDead())) return;
         switch (serverType.get()) {
             case Spigot -> LerpUpDown(enemyPlayer, height);
-            case Paper  -> performSilentTp(enemyPlayer, height);
+            case Paper -> performSilentTp(enemyPlayer, height);
         }
     }
 
     private void LerpUpDown(LivingEntity targetEntity, int altura) {
         if (mc.player == null || targetEntity == mc.player) return;
-        Vec3d origin = mc.player.getPos();
+        Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         int steps = Math.max(3, altura / 10);
         for (int i = 1; i <= steps; i++) {
             double currentY = origin.y + (altura * (i / (double) steps));
@@ -184,13 +172,12 @@ public class UltraMace extends Module {
 
     private void performSilentTp(LivingEntity targetEntity, int altura) {
         if (mc.player == null || targetEntity == mc.player) return;
-        Vec3d previouspos = mc.player.getPos();
+        Vec3d previouspos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         int blocks = altura;
         boolean shortTp = blocks <= 22;
-
         if (mc.player.hasVehicle() && mc.player.getVehicle() != null) {
             var vehicle = mc.player.getVehicle();
-            Vec3d vPos = vehicle.getPos();
+            Vec3d vPos = new Vec3d(vehicle.getX(), vehicle.getY(), vehicle.getZ());
             for (int i = 0; i < sendPacketsAmount.get(); i++) {
                 mc.player.networkHandler.sendPacket(new VehicleMoveC2SPacket(vPos, vehicle.getYaw(), vehicle.getPitch(), false));
             }
@@ -202,11 +189,9 @@ public class UltraMace extends Module {
                 mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(false, false));
             }
             double maxHeight = shortTp ? Math.min(mc.player.getY() + 22, mc.player.getY() + blocks) : mc.player.getY() + blocks;
-
             PlayerMoveC2SPacket movepacket = new PlayerMoveC2SPacket.PositionAndOnGround(mc.player.getX(), maxHeight, mc.player.getZ(), false, false);
             ((IPlayerMoveC2SPacket) movepacket).meteor$setTag(1337);
             mc.player.networkHandler.sendPacket(movepacket);
-
             PlayerMoveC2SPacket homepacket = new PlayerMoveC2SPacket.PositionAndOnGround(previouspos.x, previouspos.y, previouspos.z, false, false);
             ((IPlayerMoveC2SPacket) homepacket).meteor$setTag(1337);
             mc.player.networkHandler.sendPacket(homepacket);
