@@ -1,7 +1,7 @@
 package com.example.addon.modules;
 
 //papoi q lees esto, tanto te interesa? es un modulo basico :v
-import com.example.addon.Golden;
+import com.example.addon.AddonTemplate;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
@@ -10,10 +10,10 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.math.Vec3d;
-
 import java.util.Comparator;
 
 public class TeleportToPlayer extends Module {
+
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
     private final Setting<Double> stepSize = sgGeneral.add(new DoubleSetting.Builder()
@@ -35,7 +35,7 @@ public class TeleportToPlayer extends Module {
         .build());
 
     public TeleportToPlayer() {
-        super(Golden.CATEGORY, "PlayerTP", "Te teleporta al jugador más cercano instantáneamente via paquetes (Inspirado en Flytp De Sunny");
+        super(AddonTemplate.CATEGORY, "PlayerTP", "Te teleporta al jugador más cercano instantáneamente via paquetes (Inspirado en Flytp De Sunny");
     }
 
     @EventHandler
@@ -52,17 +52,15 @@ public class TeleportToPlayer extends Module {
 
         if (target == null) return;
 
-        Vec3d origin = mc.player.getPos();
-        Vec3d destination = target.getPos();
+        Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        Vec3d destination = new Vec3d(target.getX(), target.getY(), target.getZ());
+
         double distance = origin.distanceTo(destination);
-        
-      
+
         double maxStep = stepSize.get();
         int steps = (int) Math.ceil(distance / maxStep);
 
-        
         for (int i = 1; i <= steps; i++) {
-           
             double ratio = (double) i / steps;
             double x = origin.x + (destination.x - origin.x) * ratio;
             double y = origin.y + (destination.y - origin.y) * ratio;
