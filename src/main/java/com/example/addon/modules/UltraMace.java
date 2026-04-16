@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class UltraMace extends Module {
-
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgHits = settings.createGroup("Hits Config");
 
@@ -112,16 +111,20 @@ public class UltraMace extends Module {
     @EventHandler
     private void onSendPacket(PacketEvent.Send event) {
         if (mc.player == null || mc.getNetworkHandler() == null || attackBool) return;
+
         if (event.packet instanceof PlayerInteractEntityC2SPacket packet) {
             IPlayerInteractEntityC2SPacket accessor = (IPlayerInteractEntityC2SPacket) packet;
             if (!String.valueOf(accessor.meteor$getType()).contains("ATTACK")) return;
+
             Entity entity = accessor.meteor$getEntity();
             if (!(entity instanceof LivingEntity targetEntity)) return;
             if (targetEntity instanceof PlayerEntity p && Friends.get().isFriend(p)) return;
             if (targetEntity == mc.player) return;
+
             event.cancel();
             attackBool = true;
             targetPlayer = targetEntity;
+
             int maceSlot = -1;
             if (autoSwitch.get()) {
                 for (int i = 0; i < 9; i++) {
@@ -132,49 +135,73 @@ public class UltraMace extends Module {
                 }
                 if (maceSlot != -1) InvUtils.swap(maceSlot, false);
             }
+
+            // ==================== NUEVO: TELEPORT DE ALCANCE INFINITO ====================
+            Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+            Vec3d destination = new Vec3d(targetEntity.getX(), targetEntity.getY(), targetEntity.getZ());
+            double distance = origin.distanceTo(destination);
+
+            if (distance > 6.0) {
+                double step = 10.0; // ← mismo valor por defecto que SuperAura
+                int steps = (step <= 0) ? 1 : (int) Math.ceil(distance / step);
+                for (int i = 1; i <= steps; i++) {
+                    Vec3d next = origin.lerp(destination, (double) i / steps);
+                    sendPos(next.x, next.y, next.z, true);
+                }
+            }
+
+            Vec3d basePos = (distance > 6.0) ? destination : origin;
+            // ============================================================================
+
             List<Integer> hits = getActiveHitList();
             if (alwaysTF.get()) {
                 for (int i = 0; i < hitAmount.get(); i++) {
                     for (int height : hits) {
-                        serverBasedTeleport(targetEntity, height);
+                        serverBasedTeleport(targetEntity, height, basePos);
                         sendAttack(targetEntity);
                     }
                 }
             } else {
                 for (int i = 0; i < hitAmount.get(); i++) {
-                    serverBasedTeleport(targetEntity, fallHeight.get());
+                    serverBasedTeleport(targetEntity, fallHeight.get(), basePos);
                     sendAttack(targetEntity);
                 }
             }
+
+            // Volvemos al origen si hicimos teleport largo
+            if (distance > 6.0) {
+                sendPos(origin.x, origin.y, origin.z, true);
+            }
+
             if (autoSwitch.get() && maceSlot != -1) InvUtils.swap(maceSlot, false);
             attackBool = false;
         }
     }
 
-    private void serverBasedTeleport(LivingEntity enemyPlayer, int height) {
+    private void serverBasedTeleport(LivingEntity enemyPlayer, int height, Vec3d basePos) {
         if (packetDisable.get() && (enemyPlayer.isBlocking() || enemyPlayer.isUsingItem() || enemyPlayer.isDead())) return;
         switch (serverType.get()) {
-            case Spigot -> LerpUpDown(enemyPlayer, height);
-            case Paper -> performSilentTp(enemyPlayer, height);
+            case Spigot -> LerpUpDown(enemyPlayer, height, basePos);
+            case Paper -> performSilentTp(enemyPlayer, height, basePos);
         }
     }
 
-    private void LerpUpDown(LivingEntity targetEntity, int altura) {
+    private void LerpUpDown(LivingEntity targetEntity, int altura, Vec3d basePos) {
         if (mc.player == null || targetEntity == mc.player) return;
-        Vec3d origin = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         int steps = Math.max(3, altura / 10);
         for (int i = 1; i <= steps; i++) {
-            double currentY = origin.y + (altura * (i / (double) steps));
-            sendPos(origin.x, currentY, origin.z, false);
+            double currentY = basePos.y + (altura * (i / (double) steps));
+            sendPos(basePos.x, currentY, basePos.z, false);
         }
-        sendPos(origin.x, origin.y, origin.z, false);
+        sendPos(basePos.x, basePos.y, basePos.z, false);
     }
 
-    private void performSilentTp(LivingEntity targetEntity, int altura) {
+    private void performSilentTp(LivingEntity targetEntity, int altura, Vec3d basePos) {
         if (mc.player == null || targetEntity == mc.player) return;
-        Vec3d previouspos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+
         int blocks = altura;
         boolean shortTp = blocks <= 22;
+
         if (mc.player.hasVehicle() && mc.player.getVehicle() != null) {
             var vehicle = mc.player.getVehicle();
             Vec3d vPos = new Vec3d(vehicle.getX(), vehicle.getY(), vehicle.getZ());
@@ -188,11 +215,13 @@ public class UltraMace extends Module {
             for (int i = 0; i < sendPacketsAmount.get(); i++) {
                 mc.player.networkHandler.sendPacket(new PlayerMoveC2SPacket.OnGroundOnly(false, false));
             }
-            double maxHeight = shortTp ? Math.min(mc.player.getY() + 22, mc.player.getY() + blocks) : mc.player.getY() + blocks;
-            PlayerMoveC2SPacket movepacket = new PlayerMoveC2SPacket.PositionAndOnGround(mc.player.getX(), maxHeight, mc.player.getZ(), false, false);
+            double maxHeight = shortTp ? Math.min(basePos.y + 22, basePos.y + blocks) : basePos.y + blocks;
+
+            PlayerMoveC2SPacket movepacket = new PlayerMoveC2SPacket.PositionAndOnGround(basePos.x, maxHeight, basePos.z, false, false);
             ((IPlayerMoveC2SPacket) movepacket).meteor$setTag(1337);
             mc.player.networkHandler.sendPacket(movepacket);
-            PlayerMoveC2SPacket homepacket = new PlayerMoveC2SPacket.PositionAndOnGround(previouspos.x, previouspos.y, previouspos.z, false, false);
+
+            PlayerMoveC2SPacket homepacket = new PlayerMoveC2SPacket.PositionAndOnGround(basePos.x, basePos.y, basePos.z, false, false);
             ((IPlayerMoveC2SPacket) homepacket).meteor$setTag(1337);
             mc.player.networkHandler.sendPacket(homepacket);
         }
