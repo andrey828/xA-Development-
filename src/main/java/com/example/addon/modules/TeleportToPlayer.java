@@ -35,7 +35,7 @@ public class TeleportToPlayer extends Module {
         .build());
 
     public TeleportToPlayer() {
-        super(AddonTemplate.CATEGORY, "PlayerTP", "Te teleporta al jugador más cercano instantáneamente via paquetes (Inspirado en Flytp De Sunny");
+        super(AddonTemplate.CATEGORY, "xPlayerTP", "Te teleporta al jugador más cercano instantáneamente via paquetes (Inspirado en Flytp De Sunny");
     }
 
     @EventHandler
