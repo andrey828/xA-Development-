@@ -23,9 +23,9 @@ public class ClipEscape extends Module {
     private final Setting<Integer> clipAmount = sgGeneral.add(new IntSetting.Builder()
         .name("clip-amount")
         .description("Número de bloques para clippear (puede ser negativo)")
-        .defaultValue(120)
+        .defaultValue (120)
         .min(-5000)
-        .max(5000)
+        .max(499999)
         .sliderRange(-500, 500)
         .build()
     );
@@ -47,6 +47,5 @@ public class ClipEscape extends Module {
 
         mc.player.networkHandler.sendChatMessage(comando);
 
-        mc.player.networkHandler.sendChatMessage("Escapando como siempre, q runer q eres :v");
     }
 }
